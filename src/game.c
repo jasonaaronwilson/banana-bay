@@ -711,7 +711,9 @@ static void update_projectiles(Game *g, float dt) {
                 float dx = b->x - st->x, dy = b->y - st->y;
                 if (dx * dx + dy * dy < 20.0f * 20.0f) {
                     b->active = 0;
-                    damage_structure(g, st, b->damage / 2);
+                    int dmg = (g->difficulty == DIFF_EASY && st->type == STRUCT_AA)
+                              ? st->max_hp : (b->damage / 2);
+                    damage_structure(g, st, dmg);
                     spawn_particle(g, b->x, b->y, 0, 0, 0.2f, 2.0f, COL_ORANGE);
                     break;
                 }
