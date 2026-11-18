@@ -1,6 +1,7 @@
 #include "audio.h"
 #include <SDL2/SDL.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #define SAMPLE_RATE 44100
@@ -148,7 +149,10 @@ void audio_init(void) {
     want.callback = audio_callback;
 
     g_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (g_dev != 0) {
+    if (g_dev == 0) {
+        fprintf(stderr, "[audio] SDL_OpenAudioDevice failed: %s (continuing muted)\n", SDL_GetError());
+    } else {
+        fprintf(stderr, "[audio] Initialized (%d Hz, %d samples)\n", have.freq, have.samples);
         SDL_PauseAudioDevice(g_dev, 0);
     }
 }

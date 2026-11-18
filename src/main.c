@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
         window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
     if (!renderer) {
+        fprintf(stderr, "[main] Accelerated renderer failed (%s), falling back to software\n", SDL_GetError());
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     }
     if (!renderer) {
@@ -54,6 +55,13 @@ int main(int argc, char **argv) {
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
+    }
+
+    SDL_RendererInfo rinfo;
+    if (SDL_GetRendererInfo(renderer, &rinfo) == 0) {
+        fprintf(stderr, "[main] Video driver: %s, Renderer: %s\n",
+                SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "unknown",
+                rinfo.name ? rinfo.name : "unknown");
     }
 
     SDL_RenderSetLogicalSize(renderer, SCREEN_W, SCREEN_H);
@@ -228,10 +236,16 @@ int main(int argc, char **argv) {
         if (SDL_LockTexture(texture, NULL, &pixels, &pitch) == 0) {
             gfx_present_argb8888(fb, (uint32_t *)pixels, pitch);
             SDL_UnlockTexture(texture);
+        } else {
+            fprintf(stderr, "[main] SDL_LockTexture failed: %s\n", SDL_GetError());
         }
 
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        if (SDL_RenderClear(renderer) != 0) {
+            fprintf(stderr, "[main] SDL_RenderClear failed: %s\n", SDL_GetError());
+        }
+        if (SDL_RenderCopy(renderer, texture, NULL, NULL) != 0) {
+            fprintf(stderr, "[main] SDL_RenderCopy failed: %s\n", SDL_GetError());
+        }
         SDL_RenderPresent(renderer);
     }
 

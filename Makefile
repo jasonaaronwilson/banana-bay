@@ -1,5 +1,5 @@
 CC      := gcc
-CFLAGS  := -std=c99 -Wall -Wextra -O2 -D_POSIX_C_SOURCE=200809L $(shell sdl2-config --cflags)
+CFLAGS  := -std=c99 -Wall -Wextra -O2 -MMD -MP -D_POSIX_C_SOURCE=200809L $(shell sdl2-config --cflags)
 LDFLAGS := $(shell sdl2-config --libs) -lm
 
 SRC_DIR := src
@@ -8,6 +8,7 @@ BIN     := banana-bay
 
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
+DEPS := $(OBJS:.o=.d)
 
 .PHONY: all clean run
 
@@ -18,6 +19,8 @@ $(BIN): $(OBJS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+-include $(DEPS)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

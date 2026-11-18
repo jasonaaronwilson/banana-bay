@@ -112,6 +112,8 @@ void world_generate(World *w, uint32_t seed) {
         islands[i].ry = 240.0f + (float)(h4 % 360);
     }
 
+    static float tile_fbm[WORLD_TILES_H][WORLD_TILES_W];
+
     /* Compute per-tile and per-pixel elevation */
     for (int ty = 0; ty < WORLD_TILES_H; ty++) {
         for (int tx = 0; tx < WORLD_TILES_W; tx++) {
@@ -130,6 +132,7 @@ void world_generate(World *w, uint32_t seed) {
             }
 
             float n = fbm(wx * 0.0022f, wy * 0.0022f, seed);
+            tile_fbm[ty][tx] = n;
             float elev = blob * 0.65f + n * 0.48f - 0.22f;
 
             /* Carve guaranteed carrier sea lane around CARRIER_LANE_X */
@@ -159,11 +162,22 @@ void world_generate(World *w, uint32_t seed) {
     /* Render pixel-art terrain into w->pixels */
     for (int py = 0; py < WORLD_H; py++) {
         int ty = py / TILE_SIZE;
+        int ty1 = (ty + 1 < WORLD_TILES_H) ? ty + 1 : ty;
+        float fy = (float)(py % TILE_SIZE) / (float)TILE_SIZE;
         for (int px = 0; px < WORLD_W; px++) {
             int tx = px / TILE_SIZE;
-            /* Perturb lookup slightly with high-frequency noise for organic coastlines */
+            int tx1 = (tx + 1 < WORLD_TILES_W) ? tx + 1 : tx;
+            float fx = (float)(px % TILE_SIZE) / (float)TILE_SIZE;
+
+            /* Bilinearly interpolate cached tile fbm + high-frequency micro dither */
+            float n00 = tile_fbm[ty][tx];
+            float n10 = tile_fbm[ty][tx1];
+            float n01 = tile_fbm[ty1][tx];
+            float n11 = tile_fbm[ty1][tx1];
+            float nx0 = n00 + (n10 - n00) * fx;
+            float nx1 = n01 + (n11 - n01) * fx;
+            float n = nx0 + (nx1 - nx0) * fy;
             float micro = (hash_f(px >> 2, py >> 2, seed + 77) - 0.5f) * 0.045f;
-            float n = fbm((float)px * 0.0022f, (float)py * 0.0022f, seed);
 
             /* Sample tile + micro dither */
             int dither = ((px ^ py) & 1);

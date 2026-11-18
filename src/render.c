@@ -58,26 +58,43 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
 
     switch (s->type) {
         case STRUCT_FACTORY: {
+            int hw = (s->size == 0) ? 15 : (s->size == 1 ? 22 : 32);
+            int hh = (s->size == 0) ? 12 : (s->size == 1 ? 17 : 24);
             /* Industrial compound */
-            gfx_rect(f, sx - 20, sy - 16, 40, 32, COL_BROWN_DARK);
-            gfx_rect(f, sx - 18, sy - 14, 36, 28, COL_GRAY_MID);
-            /* Sawtooth roof */
-            for (int rx = -16; rx <= 8; rx += 12) {
-                gfx_rect(f, sx + rx, sy - 12, 10, 22, COL_GRAY_DARK);
-                gfx_line(f, sx + rx, sy - 12, sx + rx + 10, sy - 12, COL_GRAY_LIGHT);
+            gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
+            gfx_rect(f, sx - hw + 2, sy - hh + 2, hw * 2 - 4, hh * 2 - 4, COL_GRAY_MID);
+            /* Sawtooth roof bays */
+            int bays = s->size + 2;
+            int bay_w = (hw * 2 - 8) / bays;
+            for (int b = 0; b < bays; b++) {
+                int rx = -hw + 4 + b * bay_w;
+                gfx_rect(f, sx + rx, sy - hh + 4, bay_w - 2, hh * 2 - 10, COL_GRAY_DARK);
+                gfx_line(f, sx + rx, sy - hh + 4, sx + rx + bay_w - 2, sy - hh + 4, COL_GRAY_LIGHT);
             }
-            /* Smokestacks */
-            gfx_rect(f, sx - 16, sy - 22, 6, 10, COL_RED_DARK);
-            gfx_rect(f, sx + 10, sy - 22, 6, 10, COL_RED_DARK);
+            /* Smokestacks (1 for small, 2 for medium, 3 for large) */
+            if (s->size == 0) {
+                gfx_rect(f, sx - 3, sy - hh - 6, 6, 9, COL_RED_DARK);
+            } else if (s->size == 1) {
+                gfx_rect(f, sx - hw + 4, sy - hh - 6, 6, 10, COL_RED_DARK);
+                gfx_rect(f, sx + hw - 10, sy - hh - 6, 6, 10, COL_RED_DARK);
+            } else {
+                gfx_rect(f, sx - hw + 5, sy - hh - 8, 7, 12, COL_RED_DARK);
+                gfx_rect(f, sx - 3, sy - hh - 8, 7, 12, COL_RED_DARK);
+                gfx_rect(f, sx + hw - 12, sy - hh - 8, 7, 12, COL_RED_DARK);
+                /* Extra storage silos on large factory */
+                gfx_circle(f, sx - hw + 8, sy + hh - 8, 5, COL_GRAY_LIGHT);
+                gfx_circle(f, sx + hw - 8, sy + hh - 8, 5, COL_GRAY_LIGHT);
+            }
             /* Level stars / status */
             for (int l = 0; l < s->level; l++) {
-                gfx_rect(f, sx - 12 + l * 9, sy + 10, 6, 4, COL_ORANGE);
+                gfx_rect(f, sx - (s->level * 9) / 2 + l * 9, sy + hh - 6, 6, 4, COL_ORANGE);
             }
             /* Build progress bar */
             if (s->level < 3) {
-                int pw = (int)(s->build_progress * 34.0f);
-                gfx_rect(f, sx - 17, sy + 18, 34, 3, COL_BLACK);
-                gfx_rect(f, sx - 17, sy + 18, pw, 3, COL_YELLOW);
+                int bar_w = hw * 2 - 6;
+                int pw = (int)(s->build_progress * (float)bar_w);
+                gfx_rect(f, sx - bar_w / 2, sy + hh + 2, bar_w, 3, COL_BLACK);
+                gfx_rect(f, sx - bar_w / 2, sy + hh + 2, pw, 3, COL_YELLOW);
             }
             break;
         }
@@ -132,10 +149,11 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
 
     /* Health bar if damaged */
     if (s->hp < s->max_hp) {
-        int bw = 32;
+        int bw = (s->type == STRUCT_FACTORY) ? (28 + s->size * 14) : 32;
+        int by = (s->type == STRUCT_FACTORY) ? (sy - (18 + s->size * 6)) : (sy - 28);
         int fill = (s->hp * bw) / s->max_hp;
-        gfx_rect(f, sx - bw / 2, sy - 28, bw, 4, COL_BLACK);
-        gfx_rect(f, sx - bw / 2, sy - 28, fill, 4, COL_RED);
+        gfx_rect(f, sx - bw / 2, by, bw, 4, COL_BLACK);
+        gfx_rect(f, sx - bw / 2, by, fill, 4, COL_RED);
     }
 }
 
@@ -334,8 +352,13 @@ static void draw_minimap(const Game *g, Framebuffer *f) {
         int sx = mx + (int)((s->x / (float)WORLD_W) * mw);
         int sy = my + (int)((s->y / (float)WORLD_H) * mh);
         uint8_t col = COL_ORANGE;
-        if (s->type == STRUCT_FACTORY) col = COL_RED;
-        else if (s->type == STRUCT_SHIPYARD) col = COL_YELLOW;
+        if (s->type == STRUCT_FACTORY) {
+            col = COL_RED;
+            if (s->size == 2) {
+                gfx_rect(f, sx - 2, sy - 2, 4, 4, col);
+                continue;
+            }
+        } else if (s->type == STRUCT_SHIPYARD) col = COL_YELLOW;
         gfx_rect(f, sx - 1, sy - 1, 3, 3, col);
     }
 

@@ -181,7 +181,20 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
             s->fire_timer = 1.0f + randf() * 2.0f;
             s->spawn_timer = 6.0f + randf() * 8.0f;
             switch (type) {
-                case STRUCT_FACTORY:  s->max_hp = 80;  g->factories_alive++; break;
+                case STRUCT_FACTORY: {
+                    float r = randf();
+                    if (g->difficulty == DIFF_EASY) {
+                        s->size = (r < 0.45f) ? 0 : (r < 0.85f ? 1 : 2);
+                    } else if (g->difficulty == DIFF_NORMAL) {
+                        s->size = (r < 0.30f) ? 0 : (r < 0.70f ? 1 : 2);
+                    } else {
+                        s->size = (r < 0.20f) ? 0 : (r < 0.55f ? 1 : 2);
+                    }
+                    /* Bombs deal 55 dmg: small = 1 bomb, medium = 2 bombs, large = 3 bombs */
+                    s->max_hp = (s->size == 0) ? 50 : (s->size == 1 ? 100 : 160);
+                    g->factories_alive++;
+                    break;
+                }
                 case STRUCT_SHIPYARD: s->max_hp = 110; break;
                 case STRUCT_AA:       s->max_hp = 45;  break;
                 case STRUCT_BARRACKS: s->max_hp = 60;  break;
@@ -207,6 +220,8 @@ void game_free(Game *g) {
 }
 
 void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
+    fprintf(stderr, "[game] Starting new game (diff=%d, seed=%u)\n", (int)diff, seed);
+    fflush(stderr);
     g->difficulty = diff;
     g_rng = seed ? seed : 1u;
     world_generate(&g->world, g_rng);
@@ -295,6 +310,9 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     }
 
     g->state = STATE_PLAYING;
+    fprintf(stderr, "[game] World ready: %d structures, %d factories\n",
+            g->num_structures, g->factories_alive);
+    fflush(stderr);
     set_status(g, "DESTROY ALL %d FACTORIES!", g->factories_alive);
 }
 
@@ -329,13 +347,17 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
     s->hp -= dmg;
     if (s->hp <= 0) {
         s->active = 0;
-        spawn_explosion(g, s->x, s->y, 30, 140.0f);
-        world_stamp_crater(&g->world, (int)s->x, (int)s->y, 20);
+        int exp_cnt = (s->type == STRUCT_FACTORY) ? (24 + s->size * 14) : 30;
+        int crater_r = (s->type == STRUCT_FACTORY) ? (16 + s->size * 7) : 20;
+        spawn_explosion(g, s->x, s->y, exp_cnt, 140.0f + (float)(s->size * 20));
+        world_stamp_crater(&g->world, (int)s->x, (int)s->y, crater_r);
         if (s->type == STRUCT_FACTORY) {
             g->factories_alive--;
             g->factories_destroyed++;
-            g->score += 500 * s->level;
-            set_status(g, "FACTORY DESTROYED! %d REMAINING", g->factories_alive);
+            g->score += 400 * (s->size + 1) * s->level;
+            set_status(g, "%s FACTORY DESTROYED! %d REMAINING",
+                       s->size == 2 ? "LARGE" : (s->size == 1 ? "MEDIUM" : "SMALL"),
+                       g->factories_alive);
         } else if (s->type == STRUCT_SHIPYARD) {
             g->score += s->building_carrier ? 800 : 400;
             if (s->building_carrier && !s->carrier_launched) {
@@ -741,8 +763,9 @@ static void update_projectiles(Game *g, float dt) {
             for (int s = 0; s < MAX_STRUCTURES; s++) {
                 Structure *st = &g->structures[s];
                 if (!st->active) continue;
+                float r = blast_r + (st->type == STRUCT_FACTORY ? (float)(st->size * 10) : 0.0f);
                 float dx = st->x - bm->x, dy = st->y - bm->y;
-                if (dx * dx + dy * dy <= blast_r * blast_r) {
+                if (dx * dx + dy * dy <= r * r) {
                     damage_structure(g, st, 55);
                 }
             }
