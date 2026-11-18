@@ -440,7 +440,7 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     gfx_text(f, 210, 445, 2, COL_GRAY_LIGHT, "MOVE:   WASD / ARROWS / LEFT STICK / D-PAD");
     gfx_text(f, 210, 472, 2, COL_GRAY_LIGHT, "GUN:    SPACE / Z / J / GAMEPAD A");
     gfx_text(f, 210, 499, 2, COL_GRAY_LIGHT, "BOMB:   X / K / SHIFT / GAMEPAD B or X");
-    gfx_text(f, 210, 526, 2, COL_GRAY_LIGHT, "PAUSE:  P or ESC    MUTE: M");
+    gfx_text(f, 210, 526, 2, COL_GRAY_LIGHT, "PAUSE:  P or ESC   MUTE: M   QUIT: Q");
 
     gfx_text(f, 210, 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
     gfx_text(f, 210, 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
@@ -451,9 +451,22 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     }
 }
 
+static void draw_quit_prompt(Framebuffer *f) {
+    gfx_rect(f, 272, 304, 480, 148, COL_BLACK);
+    gfx_rect_outline(f, 272, 304, 480, 148, COL_RED);
+    gfx_rect_outline(f, 276, 308, 472, 140, COL_YELLOW);
+
+    const char *hdr = "QUIT BANANA BAY?";
+    gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, 332, 3, COL_YELLOW, "%s", hdr);
+
+    const char *opt = "[Y / ENTER] YES    [N / ESC] NO";
+    gfx_text(f, (SCREEN_W - gfx_text_width(2, opt)) / 2, 396, 2, COL_WHITE, "%s", opt);
+}
+
 void render_game(const Game *g, Framebuffer *f) {
     if (g->state == STATE_TITLE) {
         draw_title_screen(g, f);
+        if (g->quit_prompt) draw_quit_prompt(f);
         return;
     }
 
@@ -538,5 +551,9 @@ void render_game(const Game *g, Framebuffer *f) {
 
         const char *again = "PRESS ENTER TO RETURN TO TITLE";
         gfx_text(f, (SCREEN_W - gfx_text_width(2, again)) / 2, 435, 2, COL_CYAN, "%s", again);
+    }
+
+    if (g->quit_prompt) {
+        draw_quit_prompt(f);
     }
 }

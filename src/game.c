@@ -773,11 +773,27 @@ static void update_projectiles(Game *g, float dt) {
 }
 
 void game_update(Game *g, const InputState *in, float dt) {
-    g->time_sec += dt;
-
     if (in->mute_pressed) {
         audio_toggle_mute();
     }
+
+    if (g->quit_prompt) {
+        audio_set_rotor(0, 0.0f);
+        if (in->yes_pressed || in->confirm_pressed) {
+            g->should_quit = 1;
+        } else if (in->no_pressed || in->pause_pressed || in->quit_pressed) {
+            g->quit_prompt = 0;
+        }
+        return;
+    }
+
+    if (in->quit_pressed) {
+        g->quit_prompt = 1;
+        audio_set_rotor(0, 0.0f);
+        return;
+    }
+
+    g->time_sec += dt;
 
     if (g->state == STATE_TITLE) {
         audio_set_rotor(0, 0.0f);

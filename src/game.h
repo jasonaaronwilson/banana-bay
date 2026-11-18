@@ -126,6 +126,9 @@ typedef struct {
     int confirm_pressed;
     int diff_delta;
     int mute_pressed;
+    int quit_pressed;
+    int yes_pressed;
+    int no_pressed;
 } InputState;
 
 typedef struct {
@@ -153,6 +156,8 @@ typedef struct {
     float factory_spawn_timer;
     char status_msg[96];
     float status_timer;
+    int quit_prompt;
+    int should_quit;
 } Game;
 
 void game_init(Game *g);

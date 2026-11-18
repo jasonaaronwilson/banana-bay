@@ -123,6 +123,15 @@ int main(int argc, char **argv) {
                     case SDLK_m:
                         in.mute_pressed = 1;
                         break;
+                    case SDLK_q:
+                        in.quit_pressed = 1;
+                        break;
+                    case SDLK_y:
+                        in.yes_pressed = 1;
+                        break;
+                    case SDLK_n:
+                        in.no_pressed = 1;
+                        break;
                     case SDLK_UP:
                     case SDLK_w:
                         if (game->state == STATE_TITLE) in.diff_delta = -1;
@@ -145,8 +154,12 @@ int main(int argc, char **argv) {
                 }
             } else if (ev.type == SDL_CONTROLLERBUTTONDOWN) {
                 if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_START ||
-                    (game->state != STATE_PLAYING && ev.cbutton.button == SDL_CONTROLLER_BUTTON_A)) {
+                    ((game->state != STATE_PLAYING || game->quit_prompt) &&
+                     ev.cbutton.button == SDL_CONTROLLER_BUTTON_A)) {
                     in.confirm_pressed = 1;
+                }
+                if (game->quit_prompt && ev.cbutton.button == SDL_CONTROLLER_BUTTON_B) {
+                    in.no_pressed = 1;
                 }
                 if (game->state == STATE_TITLE) {
                     if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) in.diff_delta = -1;
@@ -204,6 +217,10 @@ int main(int argc, char **argv) {
         if (dt > 0.05f) dt = 0.05f;
 
         game_update(game, &in, dt);
+        if (game->should_quit) {
+            running = 0;
+            continue;
+        }
         game_render(game, fb);
 
         void *pixels = NULL;
