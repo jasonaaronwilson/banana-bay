@@ -10,44 +10,44 @@
 static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
     int sx = (int)(g->carrier.x - cam_x);
     int sy = (int)(g->carrier.y - cam_y);
-    if (sx < -120 || sx > SCREEN_W + 120 || sy < -160 || sy > SCREEN_H + 160) return;
+    if (sx < -160 || sx > SCREEN_W + 160 || sy < -220 || sy > SCREEN_H + 220) return;
 
     /* Wake behind carrier (south of carrier since it travels north) */
-    int wake_len = 36 + (int)(sinf(g->time_sec * 8.0f) * 4.0f);
-    for (int i = 0; i < wake_len; i += 4) {
-        int spread = 10 + i / 3;
-        gfx_pixel(f, sx - spread, sy + 56 + i, COL_FOAM);
-        gfx_pixel(f, sx + spread, sy + 56 + i, COL_FOAM);
+    int wake_len = 56 + (int)(sinf(g->time_sec * 8.0f) * 6.0f);
+    for (int i = 0; i < wake_len; i += 5) {
+        int spread = 16 + i / 3;
+        gfx_pixel(f, sx - spread, sy + 90 + i, COL_FOAM);
+        gfx_pixel(f, sx + spread, sy + 90 + i, COL_FOAM);
         if ((i & 7) == 0) {
-            gfx_line(f, sx - spread + 4, sy + 56 + i, sx + spread - 4, sy + 56 + i, COL_SHALLOW_SEA);
+            gfx_line(f, sx - spread + 6, sy + 90 + i, sx + spread - 6, sy + 90 + i, COL_SHALLOW_SEA);
         }
     }
 
     /* Hull */
-    gfx_rect(f, sx - 24, sy - 54, 48, 110, COL_GRAY_DARK);
-    gfx_triangle(f, sx - 24, sy - 54, sx + 24, sy - 54, sx, sy - 74, COL_GRAY_DARK);
+    gfx_rect(f, sx - 38, sy - 88, 76, 176, COL_GRAY_DARK);
+    gfx_triangle(f, sx - 38, sy - 88, sx + 38, sy - 88, sx, sy - 120, COL_GRAY_DARK);
     /* Flight deck */
-    gfx_rect(f, sx - 20, sy - 50, 40, 102, COL_GRAY_MID);
-    gfx_triangle(f, sx - 18, sy - 50, sx + 18, sy - 50, sx, sy - 68, COL_GRAY_MID);
-    gfx_rect_outline(f, sx - 20, sy - 50, 40, 102, COL_GRAY_LIGHT);
+    gfx_rect(f, sx - 32, sy - 82, 64, 164, COL_GRAY_MID);
+    gfx_triangle(f, sx - 30, sy - 82, sx + 30, sy - 82, sx, sy - 110, COL_GRAY_MID);
+    gfx_rect_outline(f, sx - 32, sy - 82, 64, 164, COL_GRAY_LIGHT);
 
     /* Runway stripes & helipad circle */
-    for (int y = -40; y < 44; y += 10) {
-        gfx_rect(f, sx - 1, sy + y, 2, 5, COL_WHITE);
+    for (int y = -70; y < 74; y += 14) {
+        gfx_rect(f, sx - 2, sy + y, 4, 8, COL_WHITE);
     }
-    gfx_circle_outline(f, sx, sy + 18, 12, COL_YELLOW);
-    gfx_text(f, sx - 3, sy + 15, 1, COL_YELLOW, "H");
+    gfx_circle_outline(f, sx, sy + 30, 18, COL_YELLOW);
+    gfx_text(f, sx - 5, sy + 24, 2, COL_YELLOW, "H");
 
     /* Control island (starboard side) */
-    gfx_rect(f, sx + 11, sy - 16, 11, 30, COL_GRAY_LIGHT);
-    gfx_rect(f, sx + 13, sy - 12, 6, 8, COL_CYAN);
-    gfx_rect_outline(f, sx + 11, sy - 16, 11, 30, COL_BLACK);
+    gfx_rect(f, sx + 18, sy - 26, 16, 46, COL_GRAY_LIGHT);
+    gfx_rect(f, sx + 21, sy - 18, 9, 12, COL_CYAN);
+    gfx_rect_outline(f, sx + 18, sy - 26, 16, 46, COL_BLACK);
 
     /* HP bar above carrier */
-    int bw = 44;
+    int bw = 68;
     int fill = (g->carrier.hp * bw) / g->carrier.max_hp;
-    gfx_rect(f, sx - bw / 2, sy - 82, bw, 5, COL_BLACK);
-    gfx_rect(f, sx - bw / 2 + 1, sy - 81, fill > 2 ? fill - 2 : 0, 3,
+    gfx_rect(f, sx - bw / 2, sy - 130, bw, 6, COL_BLACK);
+    gfx_rect(f, sx - bw / 2 + 1, sy - 129, fill > 2 ? fill - 2 : 0, 4,
              g->carrier.hp > g->carrier.max_hp / 3 ? COL_GREEN_BRIGHT : COL_RED);
 }
 
@@ -142,7 +142,7 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
 static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y) {
     int sx = (int)(e->x - cam_x);
     int sy = (int)(e->y - cam_y);
-    if (sx < -80 || sx > SCREEN_W + 80 || sy < -80 || sy > SCREEN_H + 80) return;
+    if (sx < -140 || sx > SCREEN_W + 140 || sy < -140 || sy > SCREEN_H + 140) return;
 
     float c = cosf(e->angle);
     float s = sinf(e->angle);
@@ -150,56 +150,63 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
     switch (e->type) {
         case ENEMY_FIGHTER: {
             /* Shadow */
-            gfx_circle(f, sx + 8, sy + 12, 5, COL_BLACK);
-            /* Delta wing fighter */
-            int nx = sx + (int)(c * 12.0f);
-            int ny = sy + (int)(s * 12.0f);
-            int lx = sx + (int)(-c * 8.0f - s * 10.0f);
-            int ly = sy + (int)(-s * 8.0f + c * 10.0f);
-            int rx = sx + (int)(-c * 8.0f + s * 10.0f);
-            int ry = sy + (int)(-s * 8.0f - c * 10.0f);
+            gfx_circle(f, sx + 12, sy + 16, 8, COL_BLACK);
+            /* Delta wing fighter (scaled up) */
+            int nx = sx + (int)(c * 22.0f);
+            int ny = sy + (int)(s * 22.0f);
+            int lx = sx + (int)(-c * 14.0f - s * 17.0f);
+            int ly = sy + (int)(-s * 14.0f + c * 17.0f);
+            int rx = sx + (int)(-c * 14.0f + s * 17.0f);
+            int ry = sy + (int)(-s * 14.0f - c * 17.0f);
             gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_RED);
-            gfx_line(f, nx, ny, sx - (int)(c * 8.0f), sy - (int)(s * 8.0f), COL_YELLOW);
+            gfx_line(f, nx, ny, sx - (int)(c * 14.0f), sy - (int)(s * 14.0f), COL_YELLOW);
+            gfx_circle(f, sx + (int)(c * 6.0f), sy + (int)(s * 6.0f), 3, COL_CYAN);
             break;
         }
         case ENEMY_BOMBER: {
-            gfx_circle(f, sx + 10, sy + 14, 7, COL_BLACK);
-            int nx = sx + (int)(c * 14.0f);
-            int ny = sy + (int)(s * 14.0f);
-            int lx = sx + (int)(-c * 6.0f - s * 15.0f);
-            int ly = sy + (int)(-s * 6.0f + c * 15.0f);
-            int rx = sx + (int)(-c * 6.0f + s * 15.0f);
-            int ry = sy + (int)(-s * 6.0f - c * 15.0f);
+            gfx_circle(f, sx + 14, sy + 18, 11, COL_BLACK);
+            int nx = sx + (int)(c * 24.0f);
+            int ny = sy + (int)(s * 24.0f);
+            int lx = sx + (int)(-c * 12.0f - s * 26.0f);
+            int ly = sy + (int)(-s * 12.0f + c * 26.0f);
+            int rx = sx + (int)(-c * 12.0f + s * 26.0f);
+            int ry = sy + (int)(-s * 12.0f - c * 26.0f);
             gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_ORANGE);
-            gfx_circle(f, sx, sy, 4, COL_RED_DARK);
+            gfx_circle(f, sx, sy, 6, COL_RED_DARK);
+            gfx_circle(f, sx + (int)(c * 8.0f), sy + (int)(s * 8.0f), 4, COL_CYAN);
+            /* Engine nacelles */
+            gfx_circle(f, sx + (int)(-c * 4.0f - s * 11.0f), sy + (int)(-s * 4.0f + c * 11.0f), 3, COL_GRAY_DARK);
+            gfx_circle(f, sx + (int)(-c * 4.0f + s * 11.0f), sy + (int)(-s * 4.0f - c * 11.0f), 3, COL_GRAY_DARK);
             break;
         }
         case ENEMY_BOAT: {
             /* Patrol gunboat */
-            int fx = sx + (int)(c * 12.0f);
-            int fy = sy + (int)(s * 12.0f);
-            int bx = sx - (int)(c * 12.0f);
-            int by = sy - (int)(s * 12.0f);
-            gfx_pixel(f, bx - (int)(s * 4), by + (int)(c * 4), COL_FOAM);
-            gfx_pixel(f, bx + (int)(s * 4), by - (int)(c * 4), COL_FOAM);
-            gfx_circle(f, sx, sy, 7, COL_GRAY_DARK);
+            int fx = sx + (int)(c * 14.0f);
+            int fy = sy + (int)(s * 14.0f);
+            int bx = sx - (int)(c * 14.0f);
+            int by = sy - (int)(s * 14.0f);
+            gfx_pixel(f, bx - (int)(s * 5), by + (int)(c * 5), COL_FOAM);
+            gfx_pixel(f, bx + (int)(s * 5), by - (int)(c * 5), COL_FOAM);
+            gfx_circle(f, sx, sy, 8, COL_GRAY_DARK);
             gfx_line(f, bx, by, fx, fy, COL_RED);
             gfx_circle(f, sx, sy, 3, COL_YELLOW);
             break;
         }
         case ENEMY_CARRIER: {
-            /* Enemy flat-top carrier */
-            gfx_rect(f, sx - 22, sy - 50, 44, 100, COL_RED_DARK);
-            gfx_rect(f, sx - 17, sy - 44, 34, 88, COL_GRAY_DARK);
-            gfx_rect_outline(f, sx - 17, sy - 44, 34, 88, COL_ORANGE);
-            gfx_rect(f, sx - 19, sy - 14, 9, 26, COL_RED);
-            for (int y = -34; y < 36; y += 10) {
-                gfx_rect(f, sx - 1, sy + y, 2, 5, COL_YELLOW);
+            /* Enemy flat-top carrier (scaled up) */
+            gfx_rect(f, sx - 34, sy - 80, 68, 160, COL_RED_DARK);
+            gfx_triangle(f, sx - 34, sy - 80, sx + 34, sy - 80, sx, sy - 108, COL_RED_DARK);
+            gfx_rect(f, sx - 28, sy - 72, 56, 144, COL_GRAY_DARK);
+            gfx_triangle(f, sx - 26, sy - 72, sx + 26, sy - 72, sx, sy - 98, COL_GRAY_DARK);
+            gfx_rect_outline(f, sx - 28, sy - 72, 56, 144, COL_ORANGE);
+            gfx_rect(f, sx - 30, sy - 24, 14, 42, COL_RED);
+            for (int y = -60; y < 64; y += 14) {
+                gfx_rect(f, sx - 2, sy + y, 4, 8, COL_YELLOW);
             }
-            int bw = 44;
+            int bw = 64;
             int fill = (e->hp * bw) / e->max_hp;
-            gfx_rect(f, sx - bw / 2, sy - 58, bw, 5, COL_BLACK);
-            gfx_rect(f, sx - bw / 2, sy - 58, fill, 5, COL_ORANGE);
+            gfx_rect(f, sx - bw / 2, sy - 116, bw, 6, COL_BLACK);
+            gfx_rect(f, sx - bw / 2 + 1, sy - 115, fill > 2 ? fill - 2 : 0, 4, COL_ORANGE);
             break;
         }
     }
@@ -217,30 +224,47 @@ static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y
     float c = cosf(p->angle);
     float s = sinf(p->angle);
 
-    /* Ground shadow offset */
-    gfx_circle(f, sx + 10, sy + 14, 7, COL_BLACK);
+    /* Elongated ground shadow offset */
+    gfx_circle(f, sx + 12, sy + 16, 9, COL_BLACK);
+    gfx_circle(f, sx + 12 + (int)(c * 9.0f), sy + 16 + (int)(s * 9.0f), 6, COL_BLACK);
+    gfx_line(f, sx + 12, sy + 16,
+                sx + 12 - (int)(c * 28.0f), sy + 16 - (int)(s * 28.0f), COL_BLACK);
 
-    /* Tail boom */
-    int tx = sx - (int)(c * 17.0f);
-    int ty = sy - (int)(s * 17.0f);
-    gfx_line(f, sx, sy, tx, ty, COL_GRAY_LIGHT);
-    gfx_line(f, tx - (int)(s * 4.0f), ty + (int)(c * 4.0f),
-                tx + (int)(s * 4.0f), ty - (int)(c * 4.0f), COL_RED);
+    /* Long tail boom */
+    int tx = sx - (int)(c * 32.0f);
+    int ty = sy - (int)(s * 32.0f);
+    gfx_line(f, sx - (int)(c * 6.0f), sy - (int)(s * 6.0f), tx, ty, COL_GRAY_LIGHT);
+    gfx_line(f, sx - (int)(c * 6.0f) - (int)s, sy - (int)(s * 6.0f) + (int)c,
+                tx - (int)s, ty + (int)c, COL_GRAY_MID);
+    /* Tail horizontal stabilizer & tail rotor */
+    int hbx = sx - (int)(c * 26.0f);
+    int hby = sy - (int)(s * 26.0f);
+    gfx_line(f, hbx - (int)(s * 7.0f), hby + (int)(c * 7.0f),
+                hbx + (int)(s * 7.0f), hby - (int)(c * 7.0f), COL_BLUE);
+    gfx_line(f, tx - (int)(s * 6.0f), ty + (int)(c * 6.0f),
+                tx + (int)(s * 6.0f), ty - (int)(c * 6.0f), COL_RED);
 
-    /* Fuselage */
-    gfx_circle(f, sx, sy, 7, COL_BLUE);
-    gfx_circle_outline(f, sx, sy, 7, COL_WHITE);
+    /* Stub wings / weapon pylons */
+    gfx_line(f, sx - (int)(s * 12.0f), sy + (int)(c * 12.0f),
+                sx + (int)(s * 12.0f), sy - (int)(c * 12.0f), COL_GRAY_MID);
+
+    /* Elongated fuselage (capsule from rear engine to forward nose) */
+    gfx_circle(f, sx - (int)(c * 6.0f), sy - (int)(s * 6.0f), 8, COL_BLUE);
+    gfx_circle(f, sx + (int)(c * 4.0f), sy + (int)(s * 4.0f), 8, COL_BLUE);
+    gfx_circle(f, sx + (int)(c * 13.0f), sy + (int)(s * 13.0f), 5, COL_BLUE);
+    gfx_circle_outline(f, sx + (int)(c * 4.0f), sy + (int)(s * 4.0f), 8, COL_WHITE);
     /* Cockpit canopy */
-    gfx_circle(f, sx + (int)(c * 4.0f), sy + (int)(s * 4.0f), 4, COL_CYAN);
+    gfx_circle(f, sx + (int)(c * 10.0f), sy + (int)(s * 10.0f), 5, COL_CYAN);
+    gfx_circle(f, sx + (int)(c * 13.0f), sy + (int)(s * 13.0f), 3, COL_WHITE);
 
-    /* Spinning main rotor (2 perpendicular blades) */
+    /* Spinning main rotor (2 perpendicular blades, larger diameter) */
     for (int b = 0; b < 2; b++) {
         float ra = p->rotor_phase + (float)b * ((float)M_PI * 0.5f);
-        int rx = (int)(cosf(ra) * 19.0f);
-        int ry = (int)(sinf(ra) * 19.0f);
+        int rx = (int)(cosf(ra) * 28.0f);
+        int ry = (int)(sinf(ra) * 28.0f);
         gfx_line(f, sx - rx, sy - ry, sx + rx, sy + ry, COL_WHITE);
     }
-    gfx_circle(f, sx, sy, 2, COL_YELLOW);
+    gfx_circle(f, sx, sy, 3, COL_YELLOW);
 }
 
 static void draw_carrier_arrow(const Game *g, Framebuffer *f) {

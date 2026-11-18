@@ -218,7 +218,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     /* Player starts on the carrier */
     memset(&g->player, 0, sizeof(g->player));
     g->player.x = g->carrier.x;
-    g->player.y = g->carrier.y + 18.0f;
+    g->player.y = g->carrier.y + 30.0f;
     g->player.angle = -(float)M_PI * 0.5f; /* Facing north */
     g->player.max_hp = 100;
     g->player.hp = 100;
@@ -296,7 +296,7 @@ static void damage_player(Game *g, int dmg) {
         }
         /* Respawn on friendly carrier */
         g->player.x = g->carrier.x;
-        g->player.y = g->carrier.y + 18.0f;
+        g->player.y = g->carrier.y + 30.0f;
         g->player.vx = 0.0f;
         g->player.vy = 0.0f;
         g->player.hp = g->player.max_hp;
@@ -395,7 +395,7 @@ static void update_player(Game *g, const InputState *in, float dt) {
     if (in->fire_gun && p->gun_cooldown <= 0.0f) {
         p->gun_cooldown = 0.09f;
         float ca = cosf(p->angle), sa = sinf(p->angle);
-        spawn_bullet(g, 1, p->x + ca * 14.0f, p->y + sa * 14.0f,
+        spawn_bullet(g, 1, p->x + ca * 20.0f, p->y + sa * 20.0f,
                      p->vx * 0.3f + ca * 640.0f, p->vy * 0.3f + sa * 640.0f,
                      10, COL_YELLOW, 0.75f);
         audio_play(SFX_GUN);
@@ -427,7 +427,7 @@ static void update_player(Game *g, const InputState *in, float dt) {
     /* Resupply & repair when hovering over friendly carrier deck */
     float dx = fabsf(p->x - g->carrier.x);
     float dy = fabsf(p->y - g->carrier.y);
-    if (dx < 26.0f && dy < 54.0f && spd < 140.0f) {
+    if (dx < 40.0f && dy < 88.0f && spd < 140.0f) {
         p->resupply_timer += dt;
         if (p->resupply_timer >= 0.14f) {
             p->resupply_timer = 0.0f;
@@ -654,7 +654,7 @@ static void update_projectiles(Game *g, float dt) {
             for (int e = 0; e < MAX_ENEMIES; e++) {
                 EnemyUnit *eu = &g->enemies[e];
                 if (!eu->active) continue;
-                float r = (eu->type == ENEMY_CARRIER) ? 36.0f : 14.0f;
+                float r = (eu->type == ENEMY_CARRIER) ? 56.0f : 22.0f;
                 float dx = b->x - eu->x, dy = b->y - eu->y;
                 if (dx * dx + dy * dy < r * r) {
                     b->active = 0;
@@ -679,14 +679,14 @@ static void update_projectiles(Game *g, float dt) {
         } else {
             /* Enemy bullet hitting player */
             float dx = b->x - g->player.x, dy = b->y - g->player.y;
-            if (dx * dx + dy * dy < 12.0f * 12.0f) {
+            if (dx * dx + dy * dy < 16.0f * 16.0f) {
                 b->active = 0;
                 damage_player(g, b->damage);
                 continue;
             }
             /* Enemy bullet hitting friendly carrier */
             float cx = fabsf(b->x - g->carrier.x), cy = fabsf(b->y - g->carrier.y);
-            if (cx < 24.0f && cy < 56.0f) {
+            if (cx < 38.0f && cy < 88.0f) {
                 b->active = 0;
                 g->carrier.hp -= b->damage;
                 spawn_particle(g, b->x, b->y, 0, 0, 0.25f, 3.0f, COL_ORANGE);
@@ -733,7 +733,7 @@ static void update_projectiles(Game *g, float dt) {
                 if (!eu->active) continue;
                 if (eu->type == ENEMY_FIGHTER || eu->type == ENEMY_BOMBER) continue;
                 float dx = eu->x - bm->x, dy = eu->y - bm->y;
-                float r = (eu->type == ENEMY_CARRIER) ? 75.0f : blast_r;
+                float r = (eu->type == ENEMY_CARRIER) ? 105.0f : blast_r;
                 if (dx * dx + dy * dy <= r * r) {
                     damage_enemy(g, eu, 75);
                 }
