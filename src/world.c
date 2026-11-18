@@ -113,12 +113,13 @@ void world_generate(World *w, uint32_t seed) {
     }
 
     static float tile_fbm[WORLD_TILES_H][WORLD_TILES_W];
+    static float tile_elev[WORLD_TILES_H][WORLD_TILES_W];
 
-    /* Compute per-tile and per-pixel elevation */
+    /* Compute per-tile elevation (sampled at tile corners for smooth bilinear rendering) */
     for (int ty = 0; ty < WORLD_TILES_H; ty++) {
         for (int tx = 0; tx < WORLD_TILES_W; tx++) {
-            float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
-            float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
+            float wx = (float)(tx * TILE_SIZE);
+            float wy = (float)(ty * TILE_SIZE);
 
             float blob = 0.0f;
             for (int i = 0; i < NUM_ISLANDS; i++) {
@@ -145,6 +146,7 @@ void world_generate(World *w, uint32_t seed) {
             if (wx < 120.0f || wx > WORLD_W - 120.0f || wy < 120.0f || wy > WORLD_H - 120.0f) {
                 elev -= 0.5f;
             }
+            tile_elev[ty][tx] = elev;
 
             TileType t;
             if (elev < 0.24f)      t = TILE_DEEP_SEA;
@@ -159,17 +161,28 @@ void world_generate(World *w, uint32_t seed) {
         }
     }
 
-    /* Render pixel-art terrain into w->pixels */
+    /* Render smooth, curved pixel-art terrain into w->pixels */
     for (int py = 0; py < WORLD_H; py++) {
         int ty = py / TILE_SIZE;
         int ty1 = (ty + 1 < WORLD_TILES_H) ? ty + 1 : ty;
         float fy = (float)(py % TILE_SIZE) / (float)TILE_SIZE;
+        int cy0 = py >> 3;
+        float mfy = (float)(py & 7) * 0.125f;
+
         for (int px = 0; px < WORLD_W; px++) {
             int tx = px / TILE_SIZE;
             int tx1 = (tx + 1 < WORLD_TILES_W) ? tx + 1 : tx;
             float fx = (float)(px % TILE_SIZE) / (float)TILE_SIZE;
 
-            /* Bilinearly interpolate cached tile fbm + high-frequency micro dither */
+            /* Bilinearly interpolate elevation & fbm across 16x16 tiles for smooth coastlines */
+            float e00 = tile_elev[ty][tx];
+            float e10 = tile_elev[ty][tx1];
+            float e01 = tile_elev[ty1][tx];
+            float e11 = tile_elev[ty1][tx1];
+            float ex0 = e00 + (e10 - e00) * fx;
+            float ex1 = e01 + (e11 - e01) * fx;
+            float elev = ex0 + (ex1 - ex0) * fy;
+
             float n00 = tile_fbm[ty][tx];
             float n10 = tile_fbm[ty][tx1];
             float n01 = tile_fbm[ty1][tx];
@@ -177,50 +190,41 @@ void world_generate(World *w, uint32_t seed) {
             float nx0 = n00 + (n10 - n00) * fx;
             float nx1 = n01 + (n11 - n01) * fx;
             float n = nx0 + (nx1 - nx0) * fy;
-            float micro = (hash_f(px >> 2, py >> 2, seed + 77) - 0.5f) * 0.045f;
 
-            /* Sample tile + micro dither */
+            /* Fast 8x8 bilinear micro-perturbation for organic coves & ridges */
+            int cx0 = px >> 3;
+            float mfx = (float)(px & 7) * 0.125f;
+            float m00 = hash_f(cx0,     cy0,     seed + 77);
+            float m10 = hash_f(cx0 + 1, cy0,     seed + 77);
+            float m01 = hash_f(cx0,     cy0 + 1, seed + 77);
+            float m11 = hash_f(cx0 + 1, cy0 + 1, seed + 77);
+            float mx0 = m00 + (m10 - m00) * mfx;
+            float mx1 = m01 + (m11 - m01) * mfx;
+            float micro = ((mx0 + (mx1 - mx0) * mfy) - 0.5f) * 0.036f;
+
             int dither = ((px ^ py) & 1);
-            TileType base = (TileType)w->tiles[ty][tx];
+            float pe = elev + micro + (dither ? 0.006f : -0.006f);
 
-            /* Check neighbor for coastline foam / dither */
-            int nx = (px + (dither ? 4 : -4)) / TILE_SIZE;
-            int ny = (py + (dither ? 4 : -4)) / TILE_SIZE;
-            if (nx < 0) nx = 0;
-            if (nx >= WORLD_TILES_W) nx = WORLD_TILES_W - 1;
-            if (ny < 0) ny = 0;
-            if (ny >= WORLD_TILES_H) ny = WORLD_TILES_H - 1;
-            TileType nb = (TileType)w->tiles[ny][nx];
-
-            TileType eff = ((hash2d(px >> 1, py >> 1, seed) & 3) == 0) ? nb : base;
             uint8_t col = COL_DEEP_SEA;
-
-            switch (eff) {
-                case TILE_DEEP_SEA:
-                    col = ((n + micro) > 0.38f && dither) ? COL_MID_SEA : COL_DEEP_SEA;
-                    break;
-                case TILE_MID_SEA:
-                    col = ((n + micro) > 0.45f && dither) ? COL_SHALLOW_SEA : COL_MID_SEA;
-                    break;
-                case TILE_SHALLOW_SEA:
-                    if (nb == TILE_SAND && ((px + py) & 3) == 0) {
-                        col = COL_FOAM;
-                    } else {
-                        col = COL_SHALLOW_SEA;
-                    }
-                    break;
-                case TILE_SAND:
-                    col = ((hash2d(px, py, seed) & 7) == 0) ? COL_SAND_DARK : COL_SAND_LIGHT;
-                    break;
-                case TILE_GRASS:
-                    col = ((n + micro) > 0.56f && dither) ? COL_GRASS_MID : COL_GRASS_LIGHT;
-                    break;
-                case TILE_JUNGLE:
-                    col = ((hash2d(px >> 1, py >> 1, seed + 9) & 3) == 0) ? COL_JUNGLE_DARK : COL_GRASS_DARK;
-                    break;
-                case TILE_ROCK:
-                    col = ((n + micro) > 0.72f) ? COL_ROCK_LIGHT : COL_ROCK_DARK;
-                    break;
+            if (pe < 0.24f) {
+                col = ((n + micro) > 0.38f && dither) ? COL_MID_SEA : COL_DEEP_SEA;
+            } else if (pe < 0.34f) {
+                col = ((n + micro) > 0.45f && dither) ? COL_SHALLOW_SEA : COL_MID_SEA;
+            } else if (pe < 0.42f) {
+                /* Curved shoreline surf foam */
+                if (elev + micro > 0.409f && ((px + py) & 3) == 0) {
+                    col = COL_FOAM;
+                } else {
+                    col = COL_SHALLOW_SEA;
+                }
+            } else if (pe < 0.47f) {
+                col = ((hash2d(px, py, seed) & 7) == 0) ? COL_SAND_DARK : COL_SAND_LIGHT;
+            } else if (pe < 0.60f) {
+                col = ((n + micro) > 0.56f && dither) ? COL_GRASS_MID : COL_GRASS_LIGHT;
+            } else if (pe < 0.72f) {
+                col = ((hash2d(px >> 1, py >> 1, seed + 9) & 3) == 0) ? COL_JUNGLE_DARK : COL_GRASS_DARK;
+            } else {
+                col = ((n + micro) > 0.72f) ? COL_ROCK_LIGHT : COL_ROCK_DARK;
             }
             w->pixels[py * WORLD_W + px] = col;
         }
