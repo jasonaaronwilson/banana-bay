@@ -1,0 +1,44 @@
+Let's write a game in C for linux and eventually OS-X and the web.
+
+Our game will be called Banana Bay (an obvious tribute game to Raid on
+Bungeling Bay).
+
+It's a top down two directional scroller where a carrier based
+helicopter searches out developing factories and other elements of war
+capacity to subdue a banana republic in a lush multi-island
+procedurally generated randomized landscape.
+
+Besides the lush procedurally generated pixel art worthy landscapes,
+unpredictable enemy placement, light air combat, and dropping bombs on
+destructible targets like shipyards, factories, air defense, troop
+barracks, etc. are the focus. Multiple difficulty levels allow anyone
+to start playing immediately.
+
+To keep the pixel art feeling retro yet pretty, we restrict ourselves
+to the 256 color web palette and we target a resolution of 1024x748.
+
+Besides normal C stuff, let's use SDL2.
+
+In a departure from the original, we will use two different buttons
+for machine gun fire vs bomb dropping and perhaps allow the use of the
+left analog joystick or the d-pad whichever the user prefers.
+
+The helicopter generally stays in the center of the screen except
+perhaps during acceleration where it might move forward before the
+background catches up.
+
+The game ends when the initial factories (and any created during
+playtime) are all destroyed or when our own carrier is sunk.
+
+While the game progresses, factories are completed making the enemy
+stronger and the enemy must have at least one shipyard building an
+enemy carrier.
+
+The player must return to the carrier for additional bombs.
+
+The scrollable play are should be at least 10 screens high and 5
+screens wide though this should be simple to change.
+
+Our friendly carrier should travel south to north as the game
+progresses. An arrow indicates how to get back to the carrier.
+
