@@ -73,7 +73,25 @@ static void spawn_bullet(Game *g, int from_player, float x, float y,
     }
 }
 
+static int count_enemy_aircraft(const Game *g) {
+    int count = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (g->enemies[i].active &&
+            (g->enemies[i].type == ENEMY_FIGHTER || g->enemies[i].type == ENEMY_BOMBER)) {
+            count++;
+        }
+    }
+    return count;
+}
+
 static void spawn_enemy(Game *g, EnemyType type, float x, float y) {
+    if (type == ENEMY_FIGHTER || type == ENEMY_BOMBER) {
+        int max_aircraft = (g->difficulty == DIFF_EASY) ? 3 :
+                           (g->difficulty == DIFF_NORMAL ? 6 : 9);
+        if (count_enemy_aircraft(g) >= max_aircraft) {
+            return;
+        }
+    }
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if (!g->enemies[i].active) {
             EnemyUnit *e = &g->enemies[i];
@@ -393,7 +411,7 @@ static void update_player(Game *g, const InputState *in, float dt) {
 
     /* Machine gun fire */
     if (in->fire_gun && p->gun_cooldown <= 0.0f) {
-        p->gun_cooldown = 0.09f;
+        p->gun_cooldown = 0.045f;
         float ca = cosf(p->angle), sa = sinf(p->angle);
         spawn_bullet(g, 1, p->x + ca * 20.0f, p->y + sa * 20.0f,
                      p->vx * 0.3f + ca * 640.0f, p->vy * 0.3f + sa * 640.0f,
