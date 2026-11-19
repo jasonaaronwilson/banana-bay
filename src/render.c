@@ -323,16 +323,18 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
         case ENEMY_FIGHTER: {
             /* Shadow */
             gfx_circle(f, sx + 12, sy + 16, 9, COL_BLACK);
-            /* Delta wing fighter (+10% scaled) */
+            /* Delta wing fighter (military grey) */
             int nx = sx + (int)(c * 25.0f);
             int ny = sy + (int)(s * 25.0f);
             int lx = sx + (int)(-c * 16.0f - s * 19.0f);
             int ly = sy + (int)(-s * 16.0f + c * 19.0f);
             int rx = sx + (int)(-c * 16.0f + s * 19.0f);
             int ry = sy + (int)(-s * 16.0f - c * 19.0f);
-            gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_RED);
-            gfx_line(f, nx, ny, sx - (int)(c * 16.0f), sy - (int)(s * 16.0f), COL_YELLOW);
-            gfx_circle(f, sx + (int)(c * 7.0f), sy + (int)(s * 7.0f), 3, COL_CYAN);
+            gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_GRAY_MID);
+            gfx_line(f, nx, ny, lx, ly, COL_GRAY_LIGHT);
+            gfx_line(f, nx, ny, rx, ry, COL_GRAY_LIGHT);
+            gfx_line(f, nx, ny, sx - (int)(c * 16.0f), sy - (int)(s * 16.0f), COL_GRAY_DARK);
+            gfx_circle(f, sx + (int)(c * 7.0f), sy + (int)(s * 7.0f), 3, web_rgb(1, 2, 3));
             break;
         }
         case ENEMY_BOMBER: {
@@ -343,12 +345,14 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
             int ly = sy + (int)(-s * 14.0f + c * 29.0f);
             int rx = sx + (int)(-c * 14.0f + s * 29.0f);
             int ry = sy + (int)(-s * 14.0f - c * 29.0f);
-            gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_ORANGE);
-            gfx_circle(f, sx, sy, 7, COL_RED_DARK);
-            gfx_circle(f, sx + (int)(c * 9.0f), sy + (int)(s * 9.0f), 4, COL_CYAN);
+            gfx_triangle(f, nx, ny, lx, ly, rx, ry, COL_GRAY_DARK);
+            gfx_line(f, nx, ny, lx, ly, COL_GRAY_MID);
+            gfx_line(f, nx, ny, rx, ry, COL_GRAY_MID);
+            gfx_circle(f, sx, sy, 7, COL_GRAY_MID);
+            gfx_circle(f, sx + (int)(c * 9.0f), sy + (int)(s * 9.0f), 4, web_rgb(1, 2, 3));
             /* Engine nacelles */
-            gfx_circle(f, sx + (int)(-c * 5.0f - s * 12.0f), sy + (int)(-s * 5.0f + c * 12.0f), 3, COL_GRAY_DARK);
-            gfx_circle(f, sx + (int)(-c * 5.0f + s * 12.0f), sy + (int)(-s * 5.0f - c * 12.0f), 3, COL_GRAY_DARK);
+            gfx_circle(f, sx + (int)(-c * 5.0f - s * 12.0f), sy + (int)(-s * 5.0f + c * 12.0f), 3, COL_GRAY_LIGHT);
+            gfx_circle(f, sx + (int)(-c * 5.0f + s * 12.0f), sy + (int)(-s * 5.0f - c * 12.0f), 3, COL_GRAY_LIGHT);
             break;
         }
         case ENEMY_BOAT: {
