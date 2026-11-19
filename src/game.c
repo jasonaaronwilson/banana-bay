@@ -821,7 +821,7 @@ static void update_projectiles(Game *g, float dt) {
             for (int s = 0; s < MAX_STRUCTURES; s++) {
                 Structure *st = &g->structures[s];
                 if (!st->active) continue;
-                float r = blast_r + (st->type == STRUCT_FACTORY ? (float)(st->size * 10) : 0.0f);
+                float r = blast_r + (st->type == STRUCT_FACTORY ? (float)(8 + st->size * 20) : 0.0f);
                 float dx = st->x - bm->x, dy = st->y - bm->y;
                 if (dx * dx + dy * dy <= r * r) {
                     damage_structure(g, st, 55);

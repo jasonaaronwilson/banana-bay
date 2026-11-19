@@ -55,44 +55,72 @@ static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int 
 static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int cam_y, float time_sec) {
     int sx = (int)(s->x - cam_x);
     int sy = (int)(s->y - cam_y);
-    if (sx < -64 || sx > SCREEN_W + 64 || sy < -64 || sy > SCREEN_H + 64) return;
+    if (sx < -96 || sx > SCREEN_W + 96 || sy < -96 || sy > SCREEN_H + 96) return;
 
     switch (s->type) {
         case STRUCT_FACTORY: {
-            int hw = (s->size == 0) ? 15 : (s->size == 1 ? 22 : 32);
-            int hh = (s->size == 0) ? 12 : (s->size == 1 ? 17 : 24);
-            /* Industrial compound */
-            gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
-            gfx_rect(f, sx - hw + 2, sy - hh + 2, hw * 2 - 4, hh * 2 - 4, COL_GRAY_MID);
-            /* Sawtooth roof bays */
-            int bays = s->size + 2;
-            int bay_w = (hw * 2 - 8) / bays;
-            for (int b = 0; b < bays; b++) {
-                int rx = -hw + 4 + b * bay_w;
-                gfx_rect(f, sx + rx, sy - hh + 4, bay_w - 2, hh * 2 - 10, COL_GRAY_DARK);
-                gfx_line(f, sx + rx, sy - hh + 4, sx + rx + bay_w - 2, sy - hh + 4, COL_GRAY_LIGHT);
-            }
-            /* Smokestacks (1 for small, 2 for medium, 3 for large) */
-            if (s->size == 0) {
-                gfx_rect(f, sx - 3, sy - hh - 6, 6, 9, COL_RED_DARK);
-            } else if (s->size == 1) {
-                gfx_rect(f, sx - hw + 4, sy - hh - 6, 6, 10, COL_RED_DARK);
-                gfx_rect(f, sx + hw - 10, sy - hh - 6, 6, 10, COL_RED_DARK);
+            int hw = (s->size == 0) ? 24 : (s->size == 1 ? 32 : 56);
+            int hh = (s->size == 0) ? 16 : (s->size == 1 ? 24 : 40);
+
+            if (s->size < 2) {
+                /* Small (48x32 = 6 tiles) and Medium (64x48 = 12 tiles) factories */
+                gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
+                gfx_rect(f, sx - hw + 2, sy - hh + 2, hw * 2 - 4, hh * 2 - 4, COL_GRAY_MID);
+                int bays = s->size + 3;
+                int bay_w = (hw * 2 - 8) / bays;
+                for (int b = 0; b < bays; b++) {
+                    int rx = -hw + 4 + b * bay_w;
+                    gfx_rect(f, sx + rx, sy - hh + 4, bay_w - 2, hh * 2 - 10, COL_GRAY_DARK);
+                    gfx_line(f, sx + rx, sy - hh + 4, sx + rx + bay_w - 2, sy - hh + 4, COL_GRAY_LIGHT);
+                }
+                gfx_rect(f, sx - hw + 5, sy - hh - 7, 6, 10, COL_RED_DARK);
+                gfx_rect(f, sx + hw - 11, sy - hh - 7, 6, 10, COL_RED_DARK);
+                if (s->size == 1) {
+                    /* Medium side loading bay */
+                    gfx_rect(f, sx - hw - 6, sy - 8, 8, 16, COL_ROCK_DARK);
+                }
             } else {
-                gfx_rect(f, sx - hw + 5, sy - hh - 8, 7, 12, COL_RED_DARK);
-                gfx_rect(f, sx - 3, sy - hh - 8, 7, 12, COL_RED_DARK);
-                gfx_rect(f, sx + hw - 12, sy - hh - 8, 7, 12, COL_RED_DARK);
-                /* Extra storage silos on large factory */
-                gfx_circle(f, sx - hw + 8, sy + hh - 8, 5, COL_GRAY_LIGHT);
-                gfx_circle(f, sx + hw - 8, sy + hh - 8, 5, COL_GRAY_LIGHT);
+                /* Large multi-building industrial complex (112x80 = 35 tiles) */
+                gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_ROCK_DARK);
+                gfx_rect_outline(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
+
+                /* Main manufacturing hall (top-left) */
+                gfx_rect(f, sx - 50, sy - 34, 66, 42, COL_BROWN_DARK);
+                gfx_rect(f, sx - 48, sy - 32, 62, 38, COL_GRAY_MID);
+                for (int b = 0; b < 4; b++) {
+                    int rx = sx - 45 + b * 14;
+                    gfx_rect(f, rx, sy - 29, 12, 31, COL_GRAY_DARK);
+                    gfx_line(f, rx, sy - 29, rx + 12, sy - 29, COL_GRAY_LIGHT);
+                }
+                /* 3 tall smokestacks on main hall */
+                gfx_rect(f, sx - 44, sy - 44, 7, 13, COL_RED_DARK);
+                gfx_rect(f, sx - 22, sy - 44, 7, 13, COL_RED_DARK);
+                gfx_rect(f, sx,      sy - 44, 7, 13, COL_RED_DARK);
+
+                /* Secondary assembly wing (bottom-right) */
+                gfx_rect(f, sx + 2, sy + 2, 48, 32, COL_BROWN_DARK);
+                gfx_rect(f, sx + 4, sy + 4, 44, 28, COL_GRAY_DARK);
+                gfx_rect_outline(f, sx + 4, sy + 4, 44, 28, COL_GRAY_LIGHT);
+                gfx_rect(f, sx + 10, sy + 10, 32, 8, COL_GRAY_MID);
+
+                /* Overhead pipework / conveyor connecting halls */
+                gfx_rect(f, sx + 16, sy - 16, 26, 6, COL_ORANGE);
+                gfx_rect(f, sx + 22, sy - 16, 6, 20, COL_ORANGE);
+
+                /* Twin storage silos (bottom-left) */
+                gfx_circle(f, sx - 36, sy + 22, 8, COL_GRAY_LIGHT);
+                gfx_circle_outline(f, sx - 36, sy + 22, 8, COL_GRAY_DARK);
+                gfx_circle(f, sx - 16, sy + 22, 8, COL_GRAY_LIGHT);
+                gfx_circle_outline(f, sx - 16, sy + 22, 8, COL_GRAY_DARK);
             }
+
             /* Level stars / status */
             for (int l = 0; l < s->level; l++) {
                 gfx_rect(f, sx - (s->level * 9) / 2 + l * 9, sy + hh - 6, 6, 4, COL_ORANGE);
             }
             /* Build progress bar */
             if (s->level < 3) {
-                int bar_w = hw * 2 - 6;
+                int bar_w = hw * 2 - 8;
                 int pw = (int)(s->build_progress * (float)bar_w);
                 gfx_rect(f, sx - bar_w / 2, sy + hh + 2, bar_w, 3, COL_BLACK);
                 gfx_rect(f, sx - bar_w / 2, sy + hh + 2, pw, 3, COL_YELLOW);
@@ -183,8 +211,8 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
 
     /* Health bar if damaged */
     if (s->hp < s->max_hp) {
-        int bw = (s->type == STRUCT_FACTORY) ? (28 + s->size * 14) : 32;
-        int by = (s->type == STRUCT_FACTORY) ? (sy - (18 + s->size * 6)) : (sy - 28);
+        int bw = (s->type == STRUCT_FACTORY) ? (40 + s->size * 24) : 32;
+        int by = (s->type == STRUCT_FACTORY) ? (sy - (22 + s->size * 12)) : (sy - 28);
         int fill = (s->hp * bw) / s->max_hp;
         gfx_rect(f, sx - bw / 2, by, bw, 4, COL_BLACK);
         gfx_rect(f, sx - bw / 2, by, fill, 4, COL_RED);
