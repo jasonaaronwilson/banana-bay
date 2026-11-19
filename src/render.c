@@ -118,6 +118,27 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             for (int l = 0; l < s->level; l++) {
                 gfx_rect(f, sx - (s->level * 9) / 2 + l * 9, sy + hh - 6, 6, 4, COL_ORANGE);
             }
+            /* Visual damage: scorch marks and flickering fires (smoke is rendered in its own layer) */
+            if (s->hp < s->max_hp) {
+                int heavy = (s->hp * 2 <= s->max_hp);
+                int fl = ((int)(time_sec * 11.0f)) & 1;
+                if (s->size < 2) {
+                    gfx_rect(f, sx - hw / 2, sy - hh / 2, 10, 7, COL_BLACK);
+                    gfx_circle(f, sx - 4, sy - 2, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
+                    if (heavy) {
+                        gfx_circle(f, sx + 6, sy + 2, fl ? 3 : 4, COL_YELLOW);
+                    }
+                } else {
+                    /* Large complex: scorched main hall & assembly wing fires */
+                    gfx_rect(f, sx - 36, sy - 24, 16, 12, COL_BLACK);
+                    gfx_rect(f, sx + 14, sy + 8, 14, 10, COL_BLACK);
+                    gfx_circle(f, sx - 28, sy - 16, fl ? 5 : 4, fl ? COL_ORANGE : COL_RED);
+                    gfx_circle(f, sx + 22, sy + 12, fl ? 4 : 5, fl ? COL_RED : COL_ORANGE);
+                    if (heavy) {
+                        gfx_circle(f, sx - 8, sy - 8, fl ? 5 : 4, COL_YELLOW);
+                    }
+                }
+            }
             /* Build progress bar */
             if (s->level < 3) {
                 int bar_w = hw * 2 - 8;
@@ -304,7 +325,7 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
     /* Health bar if damaged (omitted for civilian targets) */
     if (s->hp < s->max_hp && s->type != STRUCT_BUNGALOW && s->type != STRUCT_TOWER) {
         int bw = (s->type == STRUCT_FACTORY) ? (40 + s->size * 24) : 32;
-        int by = (s->type == STRUCT_FACTORY) ? (sy - (22 + s->size * 12)) : (sy - 28);
+        int by = (s->type == STRUCT_FACTORY) ? (sy - (24 + s->size * 14)) : (sy - 28);
         int fill = (s->hp * bw) / s->max_hp;
         gfx_rect(f, sx - bw / 2, by, bw, 4, COL_BLACK);
         gfx_rect(f, sx - bw / 2, by, fill, 4, COL_RED);
@@ -789,13 +810,22 @@ void render_game(const Game *g, Framebuffer *f) {
         gfx_circle(f, sx, sy, b->from_player ? 2 : 3, b->col);
     }
 
+    /* Dedicated drifting smoke layer (above structures/units, below player helicopter) */
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        const Particle *pt = &g->particles[i];
+        if (!pt->active || pt->kind != 1) continue;
+        int sx = (int)(pt->x - cam_x);
+        int sy = (int)(pt->y - cam_y);
+        gfx_circle(f, sx, sy, (int)pt->size, pt->col);
+    }
+
     /* Player helicopter */
     draw_player_heli(g, f, cam_x, cam_y);
 
-    /* Particles */
+    /* Explosion & spark particles */
     for (int i = 0; i < MAX_PARTICLES; i++) {
         const Particle *pt = &g->particles[i];
-        if (!pt->active) continue;
+        if (!pt->active || pt->kind != 0) continue;
         int sx = (int)(pt->x - cam_x);
         int sy = (int)(pt->y - cam_y);
         gfx_circle(f, sx, sy, (int)pt->size, pt->col);

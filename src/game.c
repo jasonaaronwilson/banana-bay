@@ -49,6 +49,25 @@ static void spawn_particle(Game *g, float x, float y, float vx, float vy,
             g->particles[i].max_life = life;
             g->particles[i].size = size;
             g->particles[i].col = col;
+            g->particles[i].kind = 0;
+            return;
+        }
+    }
+}
+
+static void spawn_smoke(Game *g, float x, float y, float size) {
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (!g->particles[i].active) {
+            g->particles[i].active = 1;
+            g->particles[i].x = x;
+            g->particles[i].y = y;
+            g->particles[i].vx = 20.0f + randf() * 14.0f;
+            g->particles[i].vy = -22.0f - randf() * 12.0f;
+            g->particles[i].life = 2.4f + randf() * 1.1f;
+            g->particles[i].max_life = g->particles[i].life;
+            g->particles[i].size = size;
+            g->particles[i].col = COL_BLACK;
+            g->particles[i].kind = 1;
             return;
         }
     }
@@ -750,6 +769,22 @@ static void update_structures(Game *g, float dt) {
         Structure *s = &g->structures[i];
         if (!s->active) continue;
 
+        /* Damaged factories & structures emit wind-drifted dark smoke */
+        if (s->hp < s->max_hp && (s->type == STRUCT_FACTORY || s->type == STRUCT_SHIPYARD ||
+                                  s->type == STRUCT_TOWER || s->type == STRUCT_BUNGALOW)) {
+            s->smoke_timer -= dt;
+            if (s->smoke_timer <= 0.0f) {
+                int heavy = (s->hp * 2 <= s->max_hp);
+                s->smoke_timer = heavy ? 0.14f : 0.24f;
+                if (s->type == STRUCT_FACTORY && s->size == 2) {
+                    spawn_smoke(g, s->x - 28.0f + (randf() - 0.5f) * 10.0f, s->y - 18.0f, 4.0f);
+                    spawn_smoke(g, s->x + 22.0f + (randf() - 0.5f) * 10.0f, s->y + 10.0f, 3.5f);
+                } else {
+                    spawn_smoke(g, s->x + (randf() - 0.5f) * 10.0f, s->y - 4.0f, 3.5f);
+                }
+            }
+        }
+
         if (s->type == STRUCT_FACTORY) {
             if (s->level < 3) {
                 s->build_progress += dt * 0.025f * diff_mult;
@@ -1044,8 +1079,15 @@ static void update_projectiles(Game *g, float dt) {
         if (!pt->active) continue;
         pt->x += pt->vx * dt;
         pt->y += pt->vy * dt;
-        pt->vx *= (1.0f - 2.0f * dt);
-        pt->vy *= (1.0f - 2.0f * dt);
+        if (pt->kind == 1) {
+            /* Drifting dark smoke expands and gradually lightens as it floats away */
+            pt->size += dt * 2.2f;
+            float age = 1.0f - (pt->life / pt->max_life);
+            pt->col = (age < 0.40f) ? COL_BLACK : (age < 0.78f ? COL_GRAY_DARK : COL_GRAY_MID);
+        } else {
+            pt->vx *= (1.0f - 2.0f * dt);
+            pt->vy *= (1.0f - 2.0f * dt);
+        }
         pt->life -= dt;
         if (pt->life <= 0.0f) pt->active = 0;
     }

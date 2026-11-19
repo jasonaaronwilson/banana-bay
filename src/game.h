@@ -49,6 +49,7 @@ typedef struct {
     float build_progress;   /* 0..1 */
     float fire_timer;
     float spawn_timer;
+    float smoke_timer;
     int building_carrier;   /* 1 if this shipyard is building the enemy carrier */
     float carrier_progress; /* 0..1 */
     int carrier_launched;
@@ -97,6 +98,7 @@ typedef struct {
     float life, max_life;
     float size;
     uint8_t col;
+    uint8_t kind;   /* 0 = spark/explosion, 1 = drifting smoke */
 } Particle;
 
 typedef struct {
