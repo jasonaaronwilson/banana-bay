@@ -146,6 +146,39 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             gfx_line(f, sx, sy, sx + (int)(cosf(ang) * 9.0f), sy + (int)(sinf(ang) * 9.0f), COL_GREEN_BRIGHT);
             break;
         }
+        case STRUCT_OIL_FIELD: {
+            int count = s->size + 1; /* 1, 2, or 3 large round oil storage tanks */
+            int pw = (count == 1) ? 32 : 56;
+            int ph = (count <= 2) ? 32 : 52;
+            gfx_rect(f, sx - pw / 2, sy - ph / 2, pw, ph, COL_ROCK_DARK);
+            gfx_rect_outline(f, sx - pw / 2, sy - ph / 2, pw, ph, COL_BROWN_DARK);
+
+            int tx[3], ty[3];
+            if (count == 1) {
+                tx[0] = sx; ty[0] = sy;
+            } else if (count == 2) {
+                tx[0] = sx - 13; ty[0] = sy;
+                tx[1] = sx + 13; ty[1] = sy;
+                gfx_line(f, tx[0], ty[0], tx[1], ty[1], COL_ORANGE);
+            } else {
+                tx[0] = sx - 13; ty[0] = sy - 10;
+                tx[1] = sx + 13; ty[1] = sy - 10;
+                tx[2] = sx;      ty[2] = sy + 11;
+                gfx_line(f, tx[0], ty[0], tx[1], ty[1], COL_ORANGE);
+                gfx_line(f, tx[0], ty[0], tx[2], ty[2], COL_ORANGE);
+                gfx_line(f, tx[1], ty[1], tx[2], ty[2], COL_ORANGE);
+            }
+
+            for (int t = 0; t < count; t++) {
+                gfx_circle(f, tx[t] + 3, ty[t] + 3, 11, COL_BLACK);
+                gfx_circle(f, tx[t], ty[t], 11, COL_GRAY_LIGHT);
+                gfx_circle_outline(f, tx[t], ty[t], 11, COL_GRAY_DARK);
+                gfx_circle_outline(f, tx[t], ty[t], 8, COL_GRAY_MID);
+                gfx_circle(f, tx[t], ty[t], 3, COL_RED_DARK);
+                gfx_pixel(f, tx[t], ty[t], COL_ORANGE);
+            }
+            break;
+        }
     }
 
     /* Health bar if damaged */

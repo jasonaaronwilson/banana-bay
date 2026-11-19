@@ -32,7 +32,8 @@ typedef enum {
     STRUCT_SHIPYARD,
     STRUCT_AA,
     STRUCT_BARRACKS,
-    STRUCT_RADAR
+    STRUCT_RADAR,
+    STRUCT_OIL_FIELD
 } StructureType;
 
 typedef struct {
@@ -40,7 +41,7 @@ typedef struct {
     StructureType type;
     float x, y;
     int hp, max_hp;
-    int size;               /* 0 = small, 1 = medium, 2 = large (for factories) */
+    int size;               /* 0 = small, 1 = medium, 2 = large (factories & oil fields) */
     int level;              /* 1..3 for factories */
     float build_progress;   /* 0..1 */
     float fire_timer;

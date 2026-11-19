@@ -45,6 +45,9 @@ int world_is_coast(const World *w, int tx, int ty);
 /* Stamp a blast crater / scorch mark into the pixel-art terrain */
 void world_stamp_crater(World *w, int wx, int wy, int radius);
 
+/* Draw a pixel-art road (with optional shallow-water bridge) between two points */
+void world_draw_road(World *w, int x0, int y0, int x1, int y1);
+
 /* Copy visible viewport from world pixels to framebuffer + animate water */
 void world_render(const World *w, Framebuffer *f, int cam_x, int cam_y, float time_sec);
 

@@ -271,6 +271,93 @@ int world_is_coast(const World *w, int tx, int ty) {
     return 0;
 }
 
+static void draw_ortho_segment(World *w, int x0, int y0, int x1, int y1) {
+    int dx = (x1 > x0) ? 1 : (x1 < x0 ? -1 : 0);
+    int dy = (y1 > y0) ? 1 : (y1 < y0 ? -1 : 0);
+    int steps = abs(x1 - x0) + abs(y1 - y0);
+    int px = x0, py = y0;
+    const int hw = 4;
+
+    for (int i = 0; i <= steps; i++) {
+        int is_land = world_is_land(w, (float)px, (float)py);
+        for (int oy = -hw; oy <= hw; oy++) {
+            int wy = py + oy;
+            if ((unsigned)wy >= WORLD_H) continue;
+            for (int ox = -hw; ox <= hw; ox++) {
+                int wx = px + ox;
+                if ((unsigned)wx >= WORLD_W) continue;
+                int edge = (abs(ox) == hw || abs(oy) == hw);
+                int center = (dx != 0) ? (oy == 0) : (ox == 0);
+                uint8_t col;
+                if (is_land) {
+                    if (center && ((i / 8) & 1) == 0) {
+                        col = COL_YELLOW;
+                    } else if (edge) {
+                        col = COL_ROCK_DARK;
+                    } else {
+                        col = COL_GRAY_DARK;
+                    }
+                } else {
+                    col = (edge || (i & 3) == 0) ? COL_BROWN_DARK : COL_BROWN;
+                }
+                w->pixels[wy * WORLD_W + wx] = col;
+            }
+        }
+        px += dx;
+        py += dy;
+    }
+}
+
+static int check_ortho_segment(const World *w, int x0, int y0, int x1, int y1, int *land_cnt, int *total_cnt) {
+    int dx = (x1 > x0) ? 1 : (x1 < x0 ? -1 : 0);
+    int dy = (y1 > y0) ? 1 : (y1 < y0 ? -1 : 0);
+    int steps = abs(x1 - x0) + abs(y1 - y0);
+    for (int i = 0; i <= steps; i += 16) {
+        float px = (float)(x0 + dx * i);
+        float py = (float)(y0 + dy * i);
+        TileType tile = world_get_tile(w, px, py);
+        (*total_cnt)++;
+        if (tile >= TILE_SAND) (*land_cnt)++;
+        else if (tile < TILE_SHALLOW_SEA) return 0;
+    }
+    return 1;
+}
+
+void world_draw_road(World *w, int x0, int y0, int x1, int y1) {
+    if (abs(x1 - x0) + abs(y1 - y0) < 24) return;
+
+    /* SimCity-style orthogonal road: L-shaped or 2-turn Manhattan route */
+    uint32_t h = hash2d(x0, y0, w->seed + 313u);
+    int mode = (int)(h % 3u);
+    int land_cnt = 0, total_cnt = 0;
+
+    if (mode == 0) {
+        /* Horizontal first, then vertical */
+        if (!check_ortho_segment(w, x0, y0, x1, y0, &land_cnt, &total_cnt)) return;
+        if (!check_ortho_segment(w, x1, y0, x1, y1, &land_cnt, &total_cnt)) return;
+        if (total_cnt == 0 || land_cnt * 10 < total_cnt * 8) return;
+        draw_ortho_segment(w, x0, y0, x1, y0);
+        draw_ortho_segment(w, x1, y0, x1, y1);
+    } else if (mode == 1) {
+        /* Vertical first, then horizontal */
+        if (!check_ortho_segment(w, x0, y0, x0, y1, &land_cnt, &total_cnt)) return;
+        if (!check_ortho_segment(w, x0, y1, x1, y1, &land_cnt, &total_cnt)) return;
+        if (total_cnt == 0 || land_cnt * 10 < total_cnt * 8) return;
+        draw_ortho_segment(w, x0, y0, x0, y1);
+        draw_ortho_segment(w, x0, y1, x1, y1);
+    } else {
+        /* Stepped Z-route via midpoint X */
+        int mx = (x0 + x1) / 2;
+        if (!check_ortho_segment(w, x0, y0, mx, y0, &land_cnt, &total_cnt)) return;
+        if (!check_ortho_segment(w, mx, y0, mx, y1, &land_cnt, &total_cnt)) return;
+        if (!check_ortho_segment(w, mx, y1, x1, y1, &land_cnt, &total_cnt)) return;
+        if (total_cnt == 0 || land_cnt * 10 < total_cnt * 8) return;
+        draw_ortho_segment(w, x0, y0, mx, y0);
+        draw_ortho_segment(w, mx, y0, mx, y1);
+        draw_ortho_segment(w, mx, y1, x1, y1);
+    }
+}
+
 void world_stamp_crater(World *w, int wx, int wy, int radius) {
     int r2 = radius * radius;
     for (int dy = -radius; dy <= radius; dy++) {

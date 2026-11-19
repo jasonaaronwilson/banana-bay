@@ -199,6 +199,12 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
                 case STRUCT_AA:       s->max_hp = 45;  break;
                 case STRUCT_BARRACKS: s->max_hp = 60;  break;
                 case STRUCT_RADAR:    s->max_hp = 40;  break;
+                case STRUCT_OIL_FIELD: {
+                    float r = randf();
+                    s->size = (r < 0.35f) ? 0 : (r < 0.75f ? 1 : 2);
+                    s->max_hp = (s->size == 0) ? 20 : (s->size == 1 ? 35 : 55);
+                    break;
+                }
             }
             s->hp = s->max_hp;
             g->num_structures++;
@@ -266,6 +272,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     int num_aa        = (diff == DIFF_EASY) ? 10 : (diff == DIFF_NORMAL ? 16 : 24);
     int num_barracks  = (diff == DIFF_EASY) ? 5 : (diff == DIFF_NORMAL ? 8 : 12);
     int num_radar     = (diff == DIFF_EASY) ? 3 : (diff == DIFF_NORMAL ? 5 : 8);
+    int num_oil       = (diff == DIFF_EASY) ? 6 : (diff == DIFF_NORMAL ? 9 : 12);
 
     /* Place at least one shipyard building the enemy carrier */
     for (int i = 0; i < num_shipyards; i++) {
@@ -298,6 +305,34 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
         float rx, ry;
         if (find_land_spot(g, 160, &rx, &ry)) {
             add_structure(g, STRUCT_RADAR, rx, ry, 0);
+        }
+    }
+    for (int i = 0; i < num_oil; i++) {
+        float ox, oy;
+        if (find_land_spot(g, 130, &ox, &oy)) {
+            add_structure(g, STRUCT_OIL_FIELD, ox, oy, 0);
+        }
+    }
+
+    /* Connect nearby non-AA structures on islands with sparse orthogonal roads */
+    for (int i = 0; i < MAX_STRUCTURES; i++) {
+        if (!g->structures[i].active || g->structures[i].type == STRUCT_AA) continue;
+        int best_j = -1;
+        float best_d2 = 480.0f * 480.0f;
+        for (int j = i + 1; j < MAX_STRUCTURES; j++) {
+            if (!g->structures[j].active || g->structures[j].type == STRUCT_AA) continue;
+            float dx = g->structures[j].x - g->structures[i].x;
+            float dy = g->structures[j].y - g->structures[i].y;
+            float d2 = dx * dx + dy * dy;
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best_j = j;
+            }
+        }
+        if (best_j >= 0) {
+            world_draw_road(&g->world,
+                            (int)g->structures[i].x, (int)g->structures[i].y,
+                            (int)g->structures[best_j].x, (int)g->structures[best_j].y);
         }
     }
 
@@ -362,6 +397,17 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
             g->score += s->building_carrier ? 800 : 400;
             if (s->building_carrier && !s->carrier_launched) {
                 set_status(g, "ENEMY CARRIER SHIPYARD DESTROYED!");
+            }
+        } else if (s->type == STRUCT_OIL_FIELD) {
+            g->score += 200 * (s->size + 1);
+            float blast_r = 75.0f + (float)(s->size * 25);
+            for (int k = 0; k < MAX_STRUCTURES; k++) {
+                Structure *other = &g->structures[k];
+                if (!other->active) continue;
+                float dx = other->x - s->x, dy = other->y - s->y;
+                if (dx * dx + dy * dy <= blast_r * blast_r) {
+                    damage_structure(g, other, 45 + s->size * 15);
+                }
             }
         } else {
             g->score += 150;
@@ -721,7 +767,8 @@ static void update_projectiles(Game *g, float dt) {
                 if (dx * dx + dy * dy < 20.0f * 20.0f) {
                     b->active = 0;
                     int dmg = (g->difficulty == DIFF_EASY && st->type == STRUCT_AA)
-                              ? st->max_hp : (b->damage / 2);
+                              ? st->max_hp
+                              : (st->type == STRUCT_OIL_FIELD ? b->damage : (b->damage / 2));
                     damage_structure(g, st, dmg);
                     spawn_particle(g, b->x, b->y, 0, 0, 0.2f, 2.0f, COL_ORANGE);
                     break;
