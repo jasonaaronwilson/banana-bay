@@ -842,14 +842,19 @@ static void update_enemies(Game *g, float dt) {
         float dist = sqrtf(dx * dx + dy * dy);
         float desired = atan2f(dy, dx);
 
-        /* Realistic dogfight maneuvering: planes bank for strafing passes and break off instead of stacking on top of the helicopter */
+        /* Dogfighting: fighters try to approach from behind, then fly straight past on overshoot before looping back */
         if (e->type == ENEMY_FIGHTER) {
-            if (dist < 95.0f) {
-                /* Too close: break away to extend for another pass */
-                desired = atan2f(-dy, -dx) + ((i & 1) ? 0.35f : -0.35f);
-            } else if (dist < 190.0f) {
-                /* Standoff strafing / circling pass */
-                desired += ((i & 1) ? 0.85f : -0.85f);
+            if (e->ai_timer > 0.0f) {
+                e->ai_timer -= dt;
+                desired = e->angle; /* Keep flying past without turning around */
+            } else if (dist < 115.0f) {
+                e->ai_timer = 1.4f; /* Fly past the helicopter for 1.4s before banking back */
+                desired = e->angle;
+            } else if (dist > 180.0f) {
+                /* Aim behind the helicopter's 6 o'clock */
+                float bx = g->player.x - cosf(g->player.angle) * 130.0f;
+                float by = g->player.y - sinf(g->player.angle) * 130.0f;
+                desired = atan2f(by - e->y, bx - e->x);
             }
         }
 
@@ -886,10 +891,10 @@ static void update_enemies(Game *g, float dt) {
         if (e->y < 32.0f) e->y = 32.0f;
         if (e->y > WORLD_H - 32.0f) e->y = WORLD_H - 32.0f;
 
-        /* Firing (planes only fire when at standoff range and not breaking away) */
+        /* Firing (fighters only fire forward during attack pass, not while flying past) */
         e->fire_timer -= dt;
         if (e->fire_timer <= 0.0f && dist < 440.0f &&
-            (e->type != ENEMY_FIGHTER || dist > 75.0f)) {
+            (e->type != ENEMY_FIGHTER || (e->ai_timer <= 0.0f && fabsf(diff) < 0.75f))) {
             float bspd = 310.0f;
             spawn_bullet(g, 0, e->x, e->y, (dx / (dist + 1.0f)) * bspd,
                          (dy / (dist + 1.0f)) * bspd,
