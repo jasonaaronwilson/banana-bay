@@ -1,5 +1,6 @@
 #include "render.h"
 #include "audio.h"
+#include "version.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -472,6 +473,7 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
         const char *prompt = "PRESS ENTER OR GAMEPAD START/A TO LAUNCH";
         gfx_text(f, (SCREEN_W - gfx_text_width(2, prompt)) / 2, 636, 2, COL_YELLOW, "%s", prompt);
     }
+    gfx_text(f, 158, 660, 1, COL_GRAY_MID, "v%s", BANANA_BAY_VERSION);
 }
 
 static void draw_quit_prompt(Framebuffer *f) {

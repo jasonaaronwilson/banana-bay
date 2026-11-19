@@ -1,10 +1,12 @@
 #include "audio.h"
 #include "game.h"
 #include "palette.h"
+#include "version.h"
 #include <SDL2/SDL.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static SDL_GameController *open_first_controller(void) {
     for (int i = 0; i < SDL_NumJoysticks(); i++) {
@@ -23,8 +25,14 @@ static float apply_deadzone(Sint16 raw, float deadzone) {
 }
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("Banana Bay v%s\n", BANANA_BAY_VERSION);
+            return 0;
+        }
+    }
+
+    fprintf(stderr, "[main] Banana Bay v%s\n", BANANA_BAY_VERSION);
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -32,7 +40,7 @@ int main(int argc, char **argv) {
     }
 
     SDL_Window *window = SDL_CreateWindow(
-        "Banana Bay",
+        "Banana Bay v" BANANA_BAY_VERSION,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_W, SCREEN_H,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN

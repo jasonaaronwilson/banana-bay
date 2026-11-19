@@ -1,5 +1,7 @@
+VERSION := $(strip $(shell cat VERSION 2>/dev/null || echo 0.1.0))
+
 CC      := gcc
-CFLAGS  := -std=c99 -Wall -Wextra -O2 -MMD -MP -D_POSIX_C_SOURCE=200809L $(shell sdl2-config --cflags)
+CFLAGS  := -std=c99 -Wall -Wextra -O2 -MMD -MP -D_POSIX_C_SOURCE=200809L -DBANANA_BAY_VERSION=\"$(VERSION)\" $(shell sdl2-config --cflags)
 LDFLAGS := $(shell sdl2-config --libs) -lm
 
 SRC_DIR := src
@@ -17,7 +19,7 @@ all: $(BIN)
 $(BIN): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c VERSION | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 -include $(DEPS)

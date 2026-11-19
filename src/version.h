@@ -1,0 +1,8 @@
+#ifndef BANANA_VERSION_H
+#define BANANA_VERSION_H
+
+#ifndef BANANA_BAY_VERSION
+#define BANANA_BAY_VERSION "0.1.0"
+#endif
+
+#endif /* BANANA_VERSION_H */
