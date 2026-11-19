@@ -646,7 +646,7 @@ static void update_player(Game *g, const InputState *in, float dt) {
         p->gun_burst = 0;
     } else if (p->gun_cooldown <= 0.0f) {
         float ca = cosf(p->angle), sa = sinf(p->angle);
-        spawn_bullet(g, 1, p->x + ca * 20.0f, p->y + sa * 20.0f,
+        spawn_bullet(g, 1, p->x + ca * 22.0f, p->y + sa * 22.0f,
                      p->vx * 0.3f + ca * 640.0f, p->vy * 0.3f + sa * 640.0f,
                      10, COL_YELLOW, 0.75f);
         audio_play(SFX_GUN);
@@ -842,6 +842,17 @@ static void update_enemies(Game *g, float dt) {
         float dist = sqrtf(dx * dx + dy * dy);
         float desired = atan2f(dy, dx);
 
+        /* Realistic dogfight maneuvering: planes bank for strafing passes and break off instead of stacking on top of the helicopter */
+        if (e->type == ENEMY_FIGHTER) {
+            if (dist < 95.0f) {
+                /* Too close: break away to extend for another pass */
+                desired = atan2f(-dy, -dx) + ((i & 1) ? 0.35f : -0.35f);
+            } else if (dist < 190.0f) {
+                /* Standoff strafing / circling pass */
+                desired += ((i & 1) ? 0.85f : -0.85f);
+            }
+        }
+
         float turn_rate = (e->type == ENEMY_FIGHTER) ? 2.6f : (e->type == ENEMY_CARRIER ? 0.5f : 1.5f);
         float diff = desired - e->angle;
         while (diff > (float)M_PI) diff -= 2.0f * (float)M_PI;
@@ -875,9 +886,10 @@ static void update_enemies(Game *g, float dt) {
         if (e->y < 32.0f) e->y = 32.0f;
         if (e->y > WORLD_H - 32.0f) e->y = WORLD_H - 32.0f;
 
-        /* Firing */
+        /* Firing (planes only fire when at standoff range and not breaking away) */
         e->fire_timer -= dt;
-        if (e->fire_timer <= 0.0f && dist < 440.0f) {
+        if (e->fire_timer <= 0.0f && dist < 440.0f &&
+            (e->type != ENEMY_FIGHTER || dist > 75.0f)) {
             float bspd = 310.0f;
             spawn_bullet(g, 0, e->x, e->y, (dx / (dist + 1.0f)) * bspd,
                          (dy / (dist + 1.0f)) * bspd,
@@ -913,7 +925,7 @@ static void update_projectiles(Game *g, float dt) {
             for (int e = 0; e < MAX_ENEMIES; e++) {
                 EnemyUnit *eu = &g->enemies[e];
                 if (!eu->active) continue;
-                float r = (eu->type == ENEMY_CARRIER) ? 56.0f : 22.0f;
+                float r = (eu->type == ENEMY_CARRIER) ? 56.0f : 24.0f;
                 float dx = b->x - eu->x, dy = b->y - eu->y;
                 if (dx * dx + dy * dy < r * r) {
                     b->active = 0;
@@ -946,7 +958,7 @@ static void update_projectiles(Game *g, float dt) {
         } else {
             /* Enemy bullet hitting player */
             float dx = b->x - g->player.x, dy = b->y - g->player.y;
-            if (dx * dx + dy * dy < 16.0f * 16.0f) {
+            if (dx * dx + dy * dy < 18.0f * 18.0f) {
                 b->active = 0;
                 damage_player(g, b->damage);
                 continue;
