@@ -308,17 +308,35 @@ void world_render(const World *w, Framebuffer *f, int cam_x, int cam_y, float ti
                SCREEN_W);
     }
 
-    /* Subtle animated water glints on sea pixels */
-    int phase = (int)(time_sec * 6.0f);
-    for (int y = (phase & 3); y < SCREEN_H; y += 24) {
-        int wy = cam_y + y;
-        for (int x = ((phase * 7 + y) % 32); x < SCREEN_W; x += 32) {
-            int wx = cam_x + x;
-            uint8_t c = f->fb[y * SCREEN_W + x];
+    /* Organic world-space water glints (no regular screen-space grid) */
+    int phase = (int)(time_sec * 5.0f);
+    const int cell_w = 36;
+    const int cell_h = 28;
+    int first_cx = cam_x / cell_w;
+    int first_cy = cam_y / cell_h;
+    int last_cx = (cam_x + SCREEN_W) / cell_w;
+    int last_cy = (cam_y + SCREEN_H) / cell_h;
+
+    for (int cy = first_cy; cy <= last_cy; cy++) {
+        for (int cx = first_cx; cx <= last_cx; cx++) {
+            uint32_t h = hash2d(cx, cy, w->seed + 555u);
+            /* Independent per-cell phase (~31% active at a time) */
+            int local_phase = (int)((h >> 16) + (uint32_t)phase) & 15;
+            if (local_phase >= 5) continue;
+
+            int wx = cx * cell_w + (int)(h % (uint32_t)(cell_w - 4));
+            int wy = cy * cell_h + (int)((h >> 8) % (uint32_t)(cell_h - 2));
+            int sx = wx - cam_x;
+            int sy = wy - cam_y;
+            if ((unsigned)sx >= (unsigned)(SCREEN_W - 3) || (unsigned)sy >= (unsigned)SCREEN_H) continue;
+
+            uint8_t c = f->fb[sy * SCREEN_W + sx];
             if (c == COL_DEEP_SEA || c == COL_MID_SEA || c == COL_SHALLOW_SEA) {
-                if (((wx + wy + phase * 3) & 31) < 3) {
-                    gfx_pixel(f, x, y, COL_FOAM);
-                    gfx_pixel(f, x + 1, y, COL_SHALLOW_SEA);
+                uint8_t glint = (c == COL_DEEP_SEA) ? COL_MID_SEA :
+                                (c == COL_MID_SEA ? COL_SHALLOW_SEA : COL_FOAM);
+                gfx_pixel(f, sx, sy, glint);
+                if (local_phase >= 1 && local_phase <= 3) {
+                    gfx_pixel(f, sx + 1, sy, glint);
                 }
             }
         }
