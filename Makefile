@@ -1,4 +1,4 @@
-VERSION := $(strip $(shell cat VERSION 2>/dev/null || echo 0.1.0))
+VERSION := $(strip $(shell cat VERSION 2>/dev/null || echo 1))
 
 CC      := clang
 CFLAGS  := -std=c99 -Wall -Wextra -O2 -MMD -MP -D_POSIX_C_SOURCE=200809L -DBANANA_BAY_VERSION=\"$(VERSION)\" $(shell sdl2-config --cflags)
