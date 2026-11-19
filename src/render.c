@@ -209,6 +209,8 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
         }
         case STRUCT_BUNGALOW: {
             int huts = s->size + 1; /* 1..3 small beach bungalows */
+            int damaged = (s->hp < s->max_hp);
+            int heavy = (s->hp * 2 <= s->max_hp);
             static const int hx[3] = {-9, 9, 0};
             static const int hy[3] = {-5, -3, 8};
             for (int i = 0; i < huts; i++) {
@@ -216,29 +218,55 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
                 int by = sy + (huts == 1 ? 0 : hy[i]);
                 /* Shadow & wooden deck */
                 gfx_rect(f, bx - 5, by - 3, 13, 10, COL_BLACK);
-                gfx_rect(f, bx - 7, by - 5, 14, 10, COL_BROWN);
+                gfx_rect(f, bx - 7, by - 5, 14, 10, damaged ? COL_BROWN_DARK : COL_BROWN);
                 /* Terracotta / thatch roof */
-                uint8_t roof = (i & 1) ? COL_ORANGE : COL_YELLOW;
+                uint8_t roof = damaged ? COL_BROWN_DARK : ((i & 1) ? COL_ORANGE : COL_YELLOW);
                 gfx_rect(f, bx - 6, by - 6, 12, 8, roof);
-                gfx_line(f, bx - 6, by - 2, bx + 5, by - 2, COL_BROWN_DARK);
+                gfx_line(f, bx - 6, by - 2, bx + 5, by - 2, COL_BLACK);
+                if (damaged) {
+                    /* Charred hole & flickering fire/smoke */
+                    gfx_rect(f, bx - 2, by - 4, 5, 4, COL_BLACK);
+                    if (heavy || i == 0) {
+                        int fl = ((int)(time_sec * 12.0f) + i) & 1;
+                        gfx_circle(f, bx, by - 3, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
+                        int smk = (int)(sinf(time_sec * 4.0f + (float)i) * 2.0f);
+                        gfx_circle(f, bx + smk, by - 8, 2, COL_GRAY_DARK);
+                    }
+                }
             }
             break;
         }
         case STRUCT_TOWER: {
             int tw = (s->size == 0) ? 28 : 36;
             int th = (s->size == 0) ? 22 : 28;
+            int damaged = (s->hp < s->max_hp);
+            int heavy = (s->hp * 2 <= s->max_hp);
             /* Tall cast shadow */
             gfx_rect(f, sx - tw / 2 + 8, sy - th / 2 + 10, tw, th, COL_BLACK);
             /* Tower facade & balconies */
-            gfx_rect(f, sx - tw / 2, sy - th / 2, tw, th, COL_WHITE);
-            gfx_rect_outline(f, sx - tw / 2, sy - th / 2, tw, th, COL_GRAY_MID);
+            gfx_rect(f, sx - tw / 2, sy - th / 2, tw, th, damaged ? COL_GRAY_MID : COL_WHITE);
+            gfx_rect_outline(f, sx - tw / 2, sy - th / 2, tw, th, COL_GRAY_DARK);
             for (int ry = -th / 2 + 4; ry < th / 2 - 2; ry += 6) {
-                gfx_rect(f, sx - tw / 2 + 3, sy + ry, tw - 6, 2, COL_CYAN);
+                gfx_rect(f, sx - tw / 2 + 3, sy + ry, tw - 6, 2,
+                         (damaged && (ry & 4)) ? COL_BLACK : COL_CYAN);
             }
             /* Rooftop terrace / pool */
-            gfx_rect(f, sx - tw / 2 + 4, sy - th / 2 + 3, tw - 8, th - 6, COL_GRAY_LIGHT);
-            gfx_rect(f, sx - 6, sy - 4, 12, 8, COL_SHALLOW_SEA);
+            gfx_rect(f, sx - tw / 2 + 4, sy - th / 2 + 3, tw - 8, th - 6,
+                     damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT);
+            gfx_rect(f, sx - 6, sy - 4, 12, 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
             gfx_rect(f, sx + 4, sy - 4, 4, 4, COL_GRAY_DARK);
+            if (damaged) {
+                /* Scorch marks, cracks, fire & smoke plumes */
+                gfx_rect(f, sx - tw / 4, sy - th / 4, 8, 6, COL_BLACK);
+                gfx_line(f, sx - tw / 2 + 2, sy - 2, sx + 4, sy + 6, COL_BLACK);
+                int fl = ((int)(time_sec * 10.0f)) & 1;
+                gfx_circle(f, sx - 4, sy - 2, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
+                gfx_circle(f, sx - 2 + (int)(sinf(time_sec * 3.5f) * 3.0f), sy - 9, 4, COL_GRAY_DARK);
+                if (heavy) {
+                    gfx_circle(f, sx + 6, sy + 3, fl ? 3 : 4, COL_YELLOW);
+                    gfx_circle(f, sx + 8, sy - 6, 5, COL_GRAY_MID);
+                }
+            }
             break;
         }
         case STRUCT_NUCLEAR: {
@@ -273,8 +301,8 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
         }
     }
 
-    /* Health bar if damaged */
-    if (s->hp < s->max_hp) {
+    /* Health bar if damaged (omitted for civilian targets) */
+    if (s->hp < s->max_hp && s->type != STRUCT_BUNGALOW && s->type != STRUCT_TOWER) {
         int bw = (s->type == STRUCT_FACTORY) ? (40 + s->size * 24) : 32;
         int by = (s->type == STRUCT_FACTORY) ? (sy - (22 + s->size * 12)) : (sy - 28);
         int fill = (s->hp * bw) / s->max_hp;
