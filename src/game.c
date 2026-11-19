@@ -537,6 +537,7 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
         g->score -= 50;
         if (g->score < 0) g->score = 0;
         set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-50)");
+        audio_play(SFX_PENALTY);
     }
     s->hp -= dmg;
     if (s->hp <= 0) {
@@ -572,7 +573,7 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
             g->score -= 150;
             if (g->score < 0) g->score = 0;
             set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-200)");
-            audio_play(SFX_WARNING);
+            audio_play(SFX_PENALTY);
         } else {
             g->score += 150;
         }

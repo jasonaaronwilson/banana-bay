@@ -11,7 +11,8 @@ typedef enum {
     SFX_RESUPPLY,
     SFX_WARNING,
     SFX_VICTORY,
-    SFX_GAMEOVER
+    SFX_GAMEOVER,
+    SFX_PENALTY
 } SfxType;
 
 void audio_init(void);

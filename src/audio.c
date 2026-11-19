@@ -124,6 +124,13 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                     s = (vc->phase - floorf(vc->phase) < 0.5f ? 1.0f : -1.0f) * env * 0.18f;
                     break;
                 }
+                case SFX_PENALTY: {
+                    /* Two-tone descending negative buzzer */
+                    float freq = (u < 0.45f) ? 220.0f : 146.83f;
+                    vc->phase += freq * dt;
+                    s = (vc->phase - floorf(vc->phase) < 0.5f ? 1.0f : -1.0f) * env * 0.20f;
+                    break;
+                }
             }
 
             mix += s;
@@ -182,6 +189,7 @@ void audio_play(SfxType sfx) {
                 case SFX_WARNING:   g_voices[i].duration = 0.42f; break;
                 case SFX_VICTORY:   g_voices[i].duration = 0.95f; break;
                 case SFX_GAMEOVER:  g_voices[i].duration = 0.90f; break;
+                case SFX_PENALTY:   g_voices[i].duration = 0.36f; break;
             }
             break;
         }
