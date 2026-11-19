@@ -356,6 +356,23 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
     }
 }
 
+static void heli_pt(int sx, int sy, float c, float s, float fwd, float right, int *ox, int *oy) {
+    *ox = sx + (int)(c * fwd - s * right);
+    *oy = sy + (int)(s * fwd + c * right);
+}
+
+static void heli_quad(Framebuffer *f, int sx, int sy, float c, float s,
+                      float f0, float r0, float f1, float r1,
+                      float f2, float r2, float f3, float r3, uint8_t col) {
+    int x0, y0, x1, y1, x2, y2, x3, y3;
+    heli_pt(sx, sy, c, s, f0, r0, &x0, &y0);
+    heli_pt(sx, sy, c, s, f1, r1, &x1, &y1);
+    heli_pt(sx, sy, c, s, f2, r2, &x2, &y2);
+    heli_pt(sx, sy, c, s, f3, r3, &x3, &y3);
+    gfx_triangle(f, x0, y0, x1, y1, x2, y2, col);
+    gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
+}
+
 static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
     const PlayerHeli *p = &g->player;
     if (p->invuln_timer > 0.0f && ((int)(p->invuln_timer * 16.0f) & 1)) {
@@ -368,47 +385,61 @@ static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y
     float c = cosf(p->angle);
     float s = sinf(p->angle);
 
-    /* Elongated ground shadow offset (+10% scaled) */
-    gfx_circle(f, sx + 13, sy + 17, 10, COL_BLACK);
-    gfx_circle(f, sx + 13 + (int)(c * 10.0f), sy + 17 + (int)(s * 10.0f), 7, COL_BLACK);
-    gfx_line(f, sx + 13, sy + 17,
-                sx + 13 - (int)(c * 31.0f), sy + 17 - (int)(s * 31.0f), COL_BLACK);
+    /* Bell 222 / Airwolf ground shadow */
+    int shx = sx + 13, shy = sy + 17;
+    heli_quad(f, shx, shy, c, s, 17.0f, -4.0f, 17.0f, 4.0f, -12.0f, 6.0f, -12.0f, -6.0f, COL_BLACK);
+    heli_quad(f, shx, shy, c, s, 2.0f, -13.0f, 2.0f, 13.0f, -8.0f, 13.0f, -8.0f, -13.0f, COL_BLACK);
+    heli_quad(f, shx, shy, c, s, -12.0f, -2.5f, -12.0f, 2.5f, -35.0f, 1.0f, -35.0f, -1.0f, COL_BLACK);
 
-    /* Long tail boom */
-    int tx = sx - (int)(c * 35.0f);
-    int ty = sy - (int)(s * 35.0f);
-    gfx_line(f, sx - (int)(c * 7.0f), sy - (int)(s * 7.0f), tx, ty, COL_GRAY_LIGHT);
-    gfx_line(f, sx - (int)(c * 7.0f) - (int)s, sy - (int)(s * 7.0f) + (int)c,
-                tx - (int)s, ty + (int)c, COL_GRAY_MID);
-    /* Tail horizontal stabilizer & tail rotor */
-    int hbx = sx - (int)(c * 29.0f);
-    int hby = sy - (int)(s * 29.0f);
-    gfx_line(f, hbx - (int)(s * 8.0f), hby + (int)(c * 8.0f),
-                hbx + (int)(s * 8.0f), hby - (int)(c * 8.0f), COL_BLUE);
-    gfx_line(f, tx - (int)(s * 7.0f), ty + (int)(c * 7.0f),
-                tx + (int)(s * 7.0f), ty - (int)(c * 7.0f), COL_RED);
+    /* Horizontal tail stabilizers (near rear of tail boom) */
+    heli_quad(f, sx, sy, c, s, -27.0f, -8.0f, -27.0f, 8.0f, -32.0f, 7.0f, -32.0f, -7.0f, COL_GRAY_MID);
 
-    /* Stub wings / weapon pylons */
-    gfx_line(f, sx - (int)(s * 13.0f), sy + (int)(c * 13.0f),
-                sx + (int)(s * 13.0f), sy - (int)(c * 13.0f), COL_GRAY_MID);
+    /* Long, straight, slender tail boom (40-45% of length) */
+    heli_quad(f, sx, sy, c, s, -11.0f, -3.0f, -11.0f, 3.0f, -36.0f, 1.5f, -36.0f, -1.5f, COL_GRAY_DARK);
+    /* Tail fin & port-side tail rotor */
+    int tx0, ty0, tx1, ty1;
+    heli_pt(sx, sy, c, s, -35.0f, -1.5f, &tx0, &ty0);
+    heli_pt(sx, sy, c, s, -35.0f, -6.5f, &tx1, &ty1);
+    gfx_line(f, tx0, ty0, tx1, ty1, COL_GRAY_LIGHT);
 
-    /* Elongated fuselage (capsule from rear engine to forward nose) */
-    gfx_circle(f, sx - (int)(c * 7.0f), sy - (int)(s * 7.0f), 9, COL_BLUE);
-    gfx_circle(f, sx + (int)(c * 5.0f), sy + (int)(s * 5.0f), 9, COL_BLUE);
-    gfx_circle(f, sx + (int)(c * 14.0f), sy + (int)(s * 14.0f), 6, COL_BLUE);
-    gfx_circle_outline(f, sx + (int)(c * 5.0f), sy + (int)(s * 5.0f), 9, COL_WHITE);
-    /* Cockpit canopy */
-    gfx_circle(f, sx + (int)(c * 11.0f), sy + (int)(s * 11.0f), 6, COL_CYAN);
-    gfx_circle(f, sx + (int)(c * 14.0f), sy + (int)(s * 14.0f), 3, COL_WHITE);
+    /* Defining Bell 222 / Airwolf amidships sponsons (wide, nearly straight with slight sweepback) */
+    heli_quad(f, sx, sy, c, s,  3.0f, -14.0f,  3.0f,  14.0f, -8.0f,  13.0f, -8.0f, -13.0f, COL_GRAY_LIGHT);
+    heli_quad(f, sx, sy, c, s,  1.5f, -13.0f,  1.5f,  13.0f, -6.5f,  12.0f, -6.5f, -12.0f, COL_GRAY_DARK);
+    /* Sponson intake / weapon pod tips */
+    heli_quad(f, sx, sy, c, s,  3.5f, -14.5f,  3.5f, -11.5f, -8.5f, -11.5f, -8.5f, -14.5f, COL_GRAY_MID);
+    heli_quad(f, sx, sy, c, s,  3.5f,  11.5f,  3.5f,  14.5f, -8.5f,  14.5f, -8.5f,  11.5f, COL_GRAY_MID);
 
-    /* Spinning main rotor (2 perpendicular blades, larger diameter) */
+    /* Main fuselage: rounded nosecone -> wide cabin -> wasp-waist taper */
+    heli_quad(f, sx, sy, c, s, 18.0f, -3.0f, 18.0f,  3.0f, 12.0f,  6.0f, 12.0f, -6.0f, COL_GRAY_LIGHT);
+    heli_quad(f, sx, sy, c, s, 12.0f, -6.0f, 12.0f,  6.0f, -8.0f,  6.0f, -8.0f, -6.0f, COL_GRAY_LIGHT);
+    heli_quad(f, sx, sy, c, s, -8.0f, -6.0f, -8.0f,  6.0f, -13.0f, 3.0f, -13.0f, -3.0f, COL_GRAY_LIGHT);
+
+    /* Glossy jet-black / charcoal upper hull */
+    heli_quad(f, sx, sy, c, s, 17.0f, -2.5f, 17.0f,  2.5f, 11.5f,  5.0f, 11.5f, -5.0f, COL_BLACK);
+    heli_quad(f, sx, sy, c, s, 11.5f, -5.0f, 11.5f,  5.0f, -8.0f,  5.0f, -8.0f, -5.0f, COL_BLACK);
+    heli_quad(f, sx, sy, c, s, -8.0f, -5.0f, -8.0f,  5.0f, -12.5f, 2.5f, -12.5f, -2.5f, COL_BLACK);
+
+    /* Twin centerline turboshaft engine fairing spine */
+    heli_quad(f, sx, sy, c, s,  3.0f, -3.0f,  3.0f,  3.0f, -12.0f,  2.5f, -12.0f, -2.5f, COL_GRAY_DARK);
+
+    /* Smoked tinted cockpit windshield with subtle glint & center strut */
+    uint8_t glass_dark = web_rgb(1, 2, 3);  /* #336699 smoked steel-blue */
+    uint8_t glass_glint = web_rgb(2, 3, 4); /* #6699CC subtle sky reflection */
+    heli_quad(f, sx, sy, c, s, 14.5f, -3.0f, 14.5f,  3.0f,  8.0f,  4.5f,  8.0f, -4.5f, glass_dark);
+    heli_quad(f, sx, sy, c, s, 14.0f, -2.5f, 14.0f, -0.5f, 10.0f, -1.0f, 10.0f, -3.5f, glass_glint);
+    int cx0, cy0, cx1, cy1;
+    heli_pt(sx, sy, c, s, 14.5f, 0.0f, &cx0, &cy0);
+    heli_pt(sx, sy, c, s,  8.0f, 0.0f, &cx1, &cy1);
+    gfx_line(f, cx0, cy0, cx1, cy1, COL_BLACK);
+
+    /* Spinning main rotor (rotor diameter slightly wider than fuselage) */
     for (int b = 0; b < 2; b++) {
         float ra = p->rotor_phase + (float)b * ((float)M_PI * 0.5f);
         int rx = (int)(cosf(ra) * 31.0f);
         int ry = (int)(sinf(ra) * 31.0f);
         gfx_line(f, sx - rx, sy - ry, sx + rx, sy + ry, COL_WHITE);
     }
-    gfx_circle(f, sx, sy, 3, COL_YELLOW);
+    gfx_rect(f, sx - 1, sy - 1, 3, 3, COL_RED);
 }
 
 static void draw_carrier_arrow(const Game *g, Framebuffer *f) {
