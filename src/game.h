@@ -5,7 +5,7 @@
 #include "world.h"
 #include <stdint.h>
 
-#define MAX_STRUCTURES  128
+#define MAX_STRUCTURES  192
 #define MAX_ENEMIES     96
 #define MAX_BULLETS     256
 #define MAX_BOMBS       32
@@ -33,7 +33,9 @@ typedef enum {
     STRUCT_AA,
     STRUCT_BARRACKS,
     STRUCT_RADAR,
-    STRUCT_OIL_FIELD
+    STRUCT_OIL_FIELD,
+    STRUCT_BUNGALOW,
+    STRUCT_TOWER
 } StructureType;
 
 typedef struct {
@@ -159,6 +161,7 @@ typedef struct {
     float factory_spawn_timer;
     char status_msg[96];
     float status_timer;
+    int status_is_alert;
     int quit_prompt;
     int should_quit;
 } Game;

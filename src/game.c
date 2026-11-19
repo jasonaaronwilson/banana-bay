@@ -24,6 +24,16 @@ static void set_status(Game *g, const char *fmt, ...) {
     vsnprintf(g->status_msg, sizeof(g->status_msg), fmt, ap);
     va_end(ap);
     g->status_timer = 3.2f;
+    g->status_is_alert = 0;
+}
+
+static void set_alert_status(Game *g, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(g->status_msg, sizeof(g->status_msg), fmt, ap);
+    va_end(ap);
+    g->status_timer = 3.5f;
+    g->status_is_alert = 1;
 }
 
 static void spawn_particle(Game *g, float x, float y, float vx, float vy,
@@ -167,6 +177,36 @@ static int find_coast_spot(const Game *g, float *out_x, float *out_y) {
     return 0;
 }
 
+static int find_beach_spot(const Game *g, int min_dist, float *out_x, float *out_y) {
+    for (int tries = 0; tries < 600; tries++) {
+        int tx = 65 + (int)(randf() * (float)(WORLD_TILES_W - 80));
+        int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
+        TileType t = (TileType)g->world.tiles[ty][tx];
+        if (t != TILE_SAND && !(t == TILE_GRASS && world_is_coast(&g->world, tx, ty))) {
+            continue;
+        }
+        float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
+        float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
+
+        int ok = 1;
+        for (int i = 0; i < MAX_STRUCTURES; i++) {
+            if (!g->structures[i].active) continue;
+            float dx = g->structures[i].x - wx;
+            float dy = g->structures[i].y - wy;
+            if (dx * dx + dy * dy < (float)(min_dist * min_dist)) {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) {
+            *out_x = wx;
+            *out_y = wy;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void add_structure(Game *g, StructureType type, float x, float y, int building_carrier) {
     for (int i = 0; i < MAX_STRUCTURES; i++) {
         if (!g->structures[i].active) {
@@ -205,6 +245,14 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
                     s->max_hp = (s->size == 0) ? 20 : (s->size == 1 ? 35 : 55);
                     break;
                 }
+                case STRUCT_BUNGALOW:
+                    s->size = (int)(randf() * 3.0f); /* 1..3 huts */
+                    s->max_hp = 20;
+                    break;
+                case STRUCT_TOWER:
+                    s->size = (randf() < 0.5f) ? 0 : 1;
+                    s->max_hp = 70;
+                    break;
             }
             s->hp = s->max_hp;
             g->num_structures++;
@@ -314,6 +362,20 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
         }
     }
 
+    /* Civilian infrastructure mostly along beaches */
+    for (int i = 0; i < 16; i++) {
+        float bx, by;
+        if (find_beach_spot(g, 90, &bx, &by)) {
+            add_structure(g, STRUCT_BUNGALOW, bx, by, 0);
+        }
+    }
+    for (int i = 0; i < 8; i++) {
+        float tx, ty;
+        if (find_beach_spot(g, 140, &tx, &ty)) {
+            add_structure(g, STRUCT_TOWER, tx, ty, 0);
+        }
+    }
+
     /* Connect nearby non-AA structures on islands with sparse orthogonal roads */
     for (int i = 0; i < MAX_STRUCTURES; i++) {
         if (!g->structures[i].active || g->structures[i].type == STRUCT_AA) continue;
@@ -379,6 +441,11 @@ static void damage_player(Game *g, int dmg) {
 
 static void damage_structure(Game *g, Structure *s, int dmg) {
     if (!s->active) return;
+    if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
+        g->score -= 50;
+        if (g->score < 0) g->score = 0;
+        set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-50)");
+    }
     s->hp -= dmg;
     if (s->hp <= 0) {
         s->active = 0;
@@ -409,6 +476,11 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
                     damage_structure(g, other, 45 + s->size * 15);
                 }
             }
+        } else if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
+            g->score -= 150;
+            if (g->score < 0) g->score = 0;
+            set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-200)");
+            audio_play(SFX_WARNING);
         } else {
             g->score += 150;
         }

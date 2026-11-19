@@ -207,6 +207,40 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             }
             break;
         }
+        case STRUCT_BUNGALOW: {
+            int huts = s->size + 1; /* 1..3 small beach bungalows */
+            static const int hx[3] = {-9, 9, 0};
+            static const int hy[3] = {-5, -3, 8};
+            for (int i = 0; i < huts; i++) {
+                int bx = sx + (huts == 1 ? 0 : hx[i]);
+                int by = sy + (huts == 1 ? 0 : hy[i]);
+                /* Shadow & wooden deck */
+                gfx_rect(f, bx - 5, by - 3, 13, 10, COL_BLACK);
+                gfx_rect(f, bx - 7, by - 5, 14, 10, COL_BROWN);
+                /* Terracotta / thatch roof */
+                uint8_t roof = (i & 1) ? COL_ORANGE : COL_YELLOW;
+                gfx_rect(f, bx - 6, by - 6, 12, 8, roof);
+                gfx_line(f, bx - 6, by - 2, bx + 5, by - 2, COL_BROWN_DARK);
+            }
+            break;
+        }
+        case STRUCT_TOWER: {
+            int tw = (s->size == 0) ? 28 : 36;
+            int th = (s->size == 0) ? 22 : 28;
+            /* Tall cast shadow */
+            gfx_rect(f, sx - tw / 2 + 8, sy - th / 2 + 10, tw, th, COL_BLACK);
+            /* Tower facade & balconies */
+            gfx_rect(f, sx - tw / 2, sy - th / 2, tw, th, COL_WHITE);
+            gfx_rect_outline(f, sx - tw / 2, sy - th / 2, tw, th, COL_GRAY_MID);
+            for (int ry = -th / 2 + 4; ry < th / 2 - 2; ry += 6) {
+                gfx_rect(f, sx - tw / 2 + 3, sy + ry, tw - 6, 2, COL_CYAN);
+            }
+            /* Rooftop terrace / pool */
+            gfx_rect(f, sx - tw / 2 + 4, sy - th / 2 + 3, tw - 8, th - 6, COL_GRAY_LIGHT);
+            gfx_rect(f, sx - 6, sy - 4, 12, 8, COL_SHALLOW_SEA);
+            gfx_rect(f, sx + 4, sy - 4, 4, 4, COL_GRAY_DARK);
+            break;
+        }
     }
 
     /* Health bar if damaged */
@@ -413,6 +447,10 @@ static void draw_minimap(const Game *g, Framebuffer *f) {
         if (!s->active) continue;
         int sx = mx + (int)((s->x / (float)WORLD_W) * mw);
         int sy = my + (int)((s->y / (float)WORLD_H) * mh);
+        if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
+            gfx_rect(f, sx, sy, 2, 2, COL_GRAY_LIGHT);
+            continue;
+        }
         uint8_t col = COL_ORANGE;
         if (s->type == STRUCT_FACTORY) {
             col = COL_RED;
@@ -479,11 +517,57 @@ static void draw_hud(const Game *g, Framebuffer *f) {
 
     /* Status banner */
     if (g->status_timer > 0.0f && g->status_msg[0]) {
+        uint8_t scol = g->status_is_alert ? COL_RED : COL_YELLOW;
         int tw = gfx_text_width(2, g->status_msg);
         int bx = (SCREEN_W - tw) / 2;
         gfx_rect(f, bx - 10, 48, tw + 20, 24, COL_BLACK);
-        gfx_rect_outline(f, bx - 10, 48, tw + 20, 24, COL_YELLOW);
-        gfx_text(f, bx, 53, 2, COL_YELLOW, "%s", g->status_msg);
+        gfx_rect_outline(f, bx - 10, 48, tw + 20, 24, scol);
+        gfx_text(f, bx, 53, 2, scol, "%s", g->status_msg);
+    }
+
+    /* Lower-left indicator of structure under helicopter */
+    const char *over_label = NULL;
+    if (fabsf(g->player.x - g->carrier.x) < 42.0f && fabsf(g->player.y - g->carrier.y) < 92.0f) {
+        over_label = "FRIENDLY CARRIER";
+    } else {
+        for (int i = 0; i < MAX_STRUCTURES; i++) {
+            const Structure *s = &g->structures[i];
+            if (!s->active) continue;
+            float hw = 22.0f, hh = 22.0f;
+            if (s->type == STRUCT_FACTORY) {
+                hw = (s->size == 0) ? 26.0f : (s->size == 1 ? 34.0f : 58.0f);
+                hh = (s->size == 0) ? 18.0f : (s->size == 1 ? 26.0f : 42.0f);
+            } else if (s->type == STRUCT_SHIPYARD) {
+                hw = 28.0f; hh = 26.0f;
+            } else if (s->type == STRUCT_OIL_FIELD) {
+                hw = (s->size == 0) ? 18.0f : 30.0f;
+                hh = (s->size <= 1) ? 18.0f : 28.0f;
+            }
+            if (fabsf(g->player.x - s->x) < hw && fabsf(g->player.y - s->y) < hh) {
+                switch (s->type) {
+                    case STRUCT_FACTORY:
+                        over_label = (s->size == 2) ? "LARGE FACTORY COMPLEX" :
+                                     (s->size == 1 ? "MEDIUM FACTORY" : "SMALL FACTORY");
+                        break;
+                    case STRUCT_SHIPYARD:
+                        over_label = s->building_carrier ? "CARRIER SHIPYARD" : "ENEMY SHIPYARD";
+                        break;
+                    case STRUCT_AA:        over_label = "AA BATTERY"; break;
+                    case STRUCT_BARRACKS:  over_label = "TROOP BARRACKS"; break;
+                    case STRUCT_RADAR:     over_label = "RADAR / SAM SITE"; break;
+                    case STRUCT_OIL_FIELD: over_label = "OIL STORAGE TANKS"; break;
+                    case STRUCT_BUNGALOW:  over_label = "BEACH BUNGALOWS (CIVILIAN)"; break;
+                    case STRUCT_TOWER:     over_label = "RESIDENTIAL TOWER (CIVILIAN)"; break;
+                }
+                break;
+            }
+        }
+    }
+    if (over_label) {
+        int lw = gfx_text_width(1, over_label) + 40;
+        gfx_rect(f, 10, SCREEN_H - 26, lw + 12, 16, COL_BLACK);
+        gfx_rect_outline(f, 10, SCREEN_H - 26, lw + 12, 16, COL_GRAY_MID);
+        gfx_text(f, 16, SCREEN_H - 21, 1, COL_WHITE, "OVER: %s", over_label);
     }
 
     draw_minimap(g, f);
