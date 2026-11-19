@@ -241,6 +241,36 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             gfx_rect(f, sx + 4, sy - 4, 4, 4, COL_GRAY_DARK);
             break;
         }
+        case STRUCT_NUCLEAR: {
+            /* SimCity-style nuclear power plant (64x64 compound) */
+            gfx_rect(f, sx - 32, sy - 32, 64, 64, COL_ROCK_DARK);
+            gfx_rect_outline(f, sx - 32, sy - 32, 64, 64, COL_YELLOW);
+            gfx_rect(f, sx - 28, sy - 28, 56, 56, COL_GRAY_MID);
+
+            /* Turbine hall (bottom-left) */
+            gfx_rect(f, sx - 26, sy + 4, 26, 20, COL_GRAY_DARK);
+            gfx_rect_outline(f, sx - 26, sy + 4, 26, 20, COL_GRAY_LIGHT);
+
+            /* Domed containment reactor (top-left) */
+            gfx_circle(f, sx - 13, sy - 13, 12, COL_GRAY_LIGHT);
+            gfx_circle_outline(f, sx - 13, sy - 13, 12, COL_GRAY_DARK);
+            gfx_circle(f, sx - 13, sy - 13, 5, COL_CYAN);
+            gfx_circle(f, sx - 13, sy - 13, 2, COL_YELLOW);
+
+            /* Two iconic cooling towers (right side) */
+            int cty[2] = {sy - 14, sy + 14};
+            for (int t = 0; t < 2; t++) {
+                gfx_circle(f, sx + 17, cty[t] + 2, 12, COL_BLACK);
+                gfx_circle(f, sx + 14, cty[t], 12, COL_WHITE);
+                gfx_circle_outline(f, sx + 14, cty[t], 12, COL_GRAY_DARK);
+                gfx_circle(f, sx + 14, cty[t], 7, COL_GRAY_DARK);
+                gfx_circle(f, sx + 14, cty[t], 4, COL_BLACK);
+                /* Subtle steam puff */
+                int puff = (int)(sinf(time_sec * 3.0f + (float)t * 2.0f) * 2.0f);
+                gfx_circle(f, sx + 14 + puff, cty[t] - 2, 3, COL_GRAY_LIGHT);
+            }
+            break;
+        }
     }
 
     /* Health bar if damaged */
@@ -459,6 +489,11 @@ static void draw_minimap(const Game *g, Framebuffer *f) {
                 continue;
             }
         } else if (s->type == STRUCT_SHIPYARD) col = COL_YELLOW;
+        else if (s->type == STRUCT_NUCLEAR) {
+            gfx_rect(f, sx - 2, sy - 2, 4, 4, COL_GREEN_BRIGHT);
+            gfx_pixel(f, sx, sy, COL_YELLOW);
+            continue;
+        }
         gfx_rect(f, sx - 1, sy - 1, 3, 3, col);
     }
 
@@ -542,6 +577,8 @@ static void draw_hud(const Game *g, Framebuffer *f) {
             } else if (s->type == STRUCT_OIL_FIELD) {
                 hw = (s->size == 0) ? 18.0f : 30.0f;
                 hh = (s->size <= 1) ? 18.0f : 28.0f;
+            } else if (s->type == STRUCT_NUCLEAR) {
+                hw = 34.0f; hh = 34.0f;
             }
             if (fabsf(g->player.x - s->x) < hw && fabsf(g->player.y - s->y) < hh) {
                 switch (s->type) {
@@ -558,6 +595,7 @@ static void draw_hud(const Game *g, Framebuffer *f) {
                     case STRUCT_OIL_FIELD: over_label = "OIL STORAGE TANKS"; break;
                     case STRUCT_BUNGALOW:  over_label = "BEACH BUNGALOWS (CIVILIAN)"; break;
                     case STRUCT_TOWER:     over_label = "RESIDENTIAL TOWER (CIVILIAN)"; break;
+                    case STRUCT_NUCLEAR:   over_label = "NUCLEAR REACTOR (DO NOT BOMB!)"; break;
                 }
                 break;
             }
@@ -713,8 +751,12 @@ void render_game(const Game *g, Framebuffer *f) {
         gfx_rect(f, 242, 260, 540, 220, COL_BLACK);
         gfx_rect_outline(f, 242, 260, 540, 220, g->state == STATE_VICTORY ? COL_GREEN_BRIGHT : COL_RED);
         const char *hdr = (g->state == STATE_VICTORY) ? "MISSION ACCOMPLISHED!" : "MISSION FAILED";
-        gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, 295, 3,
+        gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, 290, 3,
                  g->state == STATE_VICTORY ? COL_GREEN_BRIGHT : COL_RED, "%s", hdr);
+        if (g->state == STATE_GAMEOVER && g->gameover_reason[0]) {
+            gfx_text(f, (SCREEN_W - gfx_text_width(2, g->gameover_reason)) / 2, 326, 2,
+                     COL_YELLOW, "%s", g->gameover_reason);
+        }
 
         gfx_text(f, 330, 355, 2, COL_WHITE, "FINAL SCORE: %d", g->score);
         gfx_text(f, 330, 385, 2, COL_YELLOW, "FACTORIES DESTROYED: %d", g->factories_destroyed);

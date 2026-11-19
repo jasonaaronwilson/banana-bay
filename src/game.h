@@ -35,7 +35,8 @@ typedef enum {
     STRUCT_RADAR,
     STRUCT_OIL_FIELD,
     STRUCT_BUNGALOW,
-    STRUCT_TOWER
+    STRUCT_TOWER,
+    STRUCT_NUCLEAR
 } StructureType;
 
 typedef struct {
@@ -162,6 +163,7 @@ typedef struct {
     char status_msg[96];
     float status_timer;
     int status_is_alert;
+    char gameover_reason[96];
     int quit_prompt;
     int should_quit;
 } Game;

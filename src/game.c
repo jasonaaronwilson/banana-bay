@@ -253,6 +253,9 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
                     s->size = (randf() < 0.5f) ? 0 : 1;
                     s->max_hp = 70;
                     break;
+                case STRUCT_NUCLEAR:
+                    s->max_hp = 200;
+                    break;
             }
             s->hp = s->max_hp;
             g->num_structures++;
@@ -271,6 +274,93 @@ void game_init(Game *g) {
 
 void game_free(Game *g) {
     world_free(&g->world);
+}
+
+static void place_nuclear_reactor(Game *g) {
+    static uint16_t island_id[WORLD_TILES_H][WORLD_TILES_W];
+    static int qx[WORLD_TILES_W * WORLD_TILES_H];
+    static int qy[WORLD_TILES_W * WORLD_TILES_H];
+    memset(island_id, 0, sizeof(island_id));
+
+    uint16_t cur_id = 0;
+    int best_id = 0;
+    int best_area = 0;
+
+    for (int ty = 0; ty < WORLD_TILES_H; ty++) {
+        for (int tx = 0; tx < WORLD_TILES_W; tx++) {
+            if (island_id[ty][tx] != 0 || g->world.tiles[ty][tx] < TILE_SAND) continue;
+            cur_id++;
+            int head = 0, tail = 0;
+            island_id[ty][tx] = cur_id;
+            qx[tail] = tx;
+            qy[tail] = ty;
+            tail++;
+
+            while (head < tail) {
+                int cx = qx[head];
+                int cy = qy[head];
+                head++;
+                static const int dx[4] = {-1, 1, 0, 0};
+                static const int dy[4] = {0, 0, -1, 1};
+                for (int d = 0; d < 4; d++) {
+                    int nx = cx + dx[d];
+                    int ny = cy + dy[d];
+                    if ((unsigned)nx < WORLD_TILES_W && (unsigned)ny < WORLD_TILES_H &&
+                        island_id[ny][nx] == 0 && g->world.tiles[ny][nx] >= TILE_SAND) {
+                        island_id[ny][nx] = cur_id;
+                        qx[tail] = nx;
+                        qy[tail] = ny;
+                        tail++;
+                    }
+                }
+            }
+
+            /* Island must be big enough (>= 220 land tiles) and have >= 3 factories */
+            if (tail >= 220) {
+                int fcount = 0;
+                for (int s = 0; s < MAX_STRUCTURES; s++) {
+                    if (!g->structures[s].active || g->structures[s].type != STRUCT_FACTORY) continue;
+                    int fx = (int)(g->structures[s].x / TILE_SIZE);
+                    int fy = (int)(g->structures[s].y / TILE_SIZE);
+                    if ((unsigned)fx < WORLD_TILES_W && (unsigned)fy < WORLD_TILES_H &&
+                        island_id[fy][fx] == cur_id) {
+                        fcount++;
+                    }
+                }
+                if (fcount >= 3 && tail > best_area) {
+                    best_area = tail;
+                    best_id = cur_id;
+                }
+            }
+        }
+    }
+
+    if (best_id == 0) return;
+
+    for (int tries = 0; tries < 500; tries++) {
+        int tx = 65 + (int)(randf() * (float)(WORLD_TILES_W - 80));
+        int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
+        if (island_id[ty][tx] != best_id) continue;
+        TileType t = (TileType)g->world.tiles[ty][tx];
+        if (t < TILE_SAND || t == TILE_ROCK) continue;
+
+        float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
+        float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
+        int ok = 1;
+        for (int i = 0; i < MAX_STRUCTURES; i++) {
+            if (!g->structures[i].active) continue;
+            float dx = g->structures[i].x - wx;
+            float dy = g->structures[i].y - wy;
+            if (dx * dx + dy * dy < 120.0f * 120.0f) {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) {
+            add_structure(g, STRUCT_NUCLEAR, wx, wy, 0);
+            return;
+        }
+    }
 }
 
 void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
@@ -292,6 +382,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     g->factories_destroyed = 0;
     g->enemy_carrier_alive = 0;
     g->factory_spawn_timer = 45.0f;
+    g->gameover_reason[0] = '\0';
 
     /* Friendly carrier starts in the southern sea lane and steams north */
     g->carrier.x = (float)CARRIER_LANE_X;
@@ -375,6 +466,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
             add_structure(g, STRUCT_TOWER, tx, ty, 0);
         }
     }
+    place_nuclear_reactor(g);
 
     /* Connect nearby non-AA structures on islands with sparse orthogonal roads */
     for (int i = 0; i < MAX_STRUCTURES; i++) {
@@ -838,6 +930,11 @@ static void update_projectiles(Game *g, float dt) {
                 float dx = b->x - st->x, dy = b->y - st->y;
                 if (dx * dx + dy * dy < 20.0f * 20.0f) {
                     b->active = 0;
+                    if (st->type == STRUCT_NUCLEAR) {
+                        set_alert_status(g, "WARNING: NUCLEAR REACTOR! DO NOT BOMB!");
+                        spawn_particle(g, b->x, b->y, 0, 0, 0.2f, 2.0f, COL_CYAN);
+                        break;
+                    }
                     int dmg = (g->difficulty == DIFF_EASY && st->type == STRUCT_AA)
                               ? st->max_hp
                               : (st->type == STRUCT_OIL_FIELD ? b->damage : (b->damage / 2));
@@ -896,6 +993,17 @@ static void update_projectiles(Game *g, float dt) {
                 float r = blast_r + (st->type == STRUCT_FACTORY ? (float)(8 + st->size * 20) : 0.0f);
                 float dx = st->x - bm->x, dy = st->y - bm->y;
                 if (dx * dx + dy * dy <= r * r) {
+                    if (st->type == STRUCT_NUCLEAR) {
+                        st->active = 0;
+                        spawn_explosion(g, st->x, st->y, 90, 220.0f);
+                        world_stamp_crater(&g->world, (int)st->x, (int)st->y, 44);
+                        snprintf(g->gameover_reason, sizeof(g->gameover_reason),
+                                 "NUCLEAR REACTOR BOMBED - MELTDOWN!");
+                        g->state = STATE_GAMEOVER;
+                        audio_set_rotor(0, 0.0f);
+                        audio_play(SFX_GAMEOVER);
+                        return;
+                    }
                     damage_structure(g, st, 55);
                 }
             }
