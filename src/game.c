@@ -431,14 +431,23 @@ static void update_player(Game *g, const InputState *in, float dt) {
     p->rotor_phase += (18.0f + spd * 0.04f) * dt;
     audio_set_rotor(1, spd / max_spd);
 
-    /* Machine gun fire */
-    if (in->fire_gun && p->gun_cooldown <= 0.0f) {
-        p->gun_cooldown = 0.045f;
+    /* Machine gun fire with short burst pauses scaled by difficulty */
+    if (!in->fire_gun) {
+        p->gun_burst = 0;
+    } else if (p->gun_cooldown <= 0.0f) {
         float ca = cosf(p->angle), sa = sinf(p->angle);
         spawn_bullet(g, 1, p->x + ca * 20.0f, p->y + sa * 20.0f,
                      p->vx * 0.3f + ca * 640.0f, p->vy * 0.3f + sa * 640.0f,
                      10, COL_YELLOW, 0.75f);
         audio_play(SFX_GUN);
+        p->gun_burst++;
+        if (p->gun_burst >= 8) {
+            p->gun_burst = 0;
+            p->gun_cooldown = (g->difficulty == DIFF_EASY) ? 0.18f :
+                              (g->difficulty == DIFF_NORMAL ? 0.38f : 0.62f);
+        } else {
+            p->gun_cooldown = 0.045f;
+        }
     }
 
     /* Bomb drop */

@@ -104,6 +104,7 @@ typedef struct {
     int bombs;
     int lives;
     float gun_cooldown;
+    int gun_burst;
     float bomb_cooldown;
     float invuln_timer;
     float resupply_timer;
