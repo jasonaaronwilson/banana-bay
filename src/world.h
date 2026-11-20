@@ -15,8 +15,8 @@
 #define WORLD_TILES_W (WORLD_W / TILE_SIZE)
 #define WORLD_TILES_H (WORLD_H / TILE_SIZE)
 
-/* X coordinate of the friendly carrier's south-to-north sea lane */
-#define CARRIER_LANE_X 640
+/* X coordinate of the friendly carrier's south-to-north sea lane (center of bay) */
+#define CARRIER_LANE_X (WORLD_W / 2)
 
 typedef enum {
     TILE_DEEP_SEA = 0,

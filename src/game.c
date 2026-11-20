@@ -145,7 +145,7 @@ static void spawn_enemy(Game *g, EnemyType type, float x, float y) {
 
 static int find_land_spot(const Game *g, int min_dist_from_existing, float *out_x, float *out_y) {
     for (int tries = 0; tries < 400; tries++) {
-        float wx = 1050.0f + randf() * (float)(WORLD_W - 1250);
+        float wx = 260.0f + randf() * (float)(WORLD_W - 520);
         float wy = 350.0f + randf() * (float)(WORLD_H - 700);
         TileType t = world_get_tile(&g->world, wx, wy);
         if (t < TILE_SAND || t == TILE_ROCK) continue;
@@ -171,7 +171,7 @@ static int find_land_spot(const Game *g, int min_dist_from_existing, float *out_
 
 static int find_coast_spot(const Game *g, float *out_x, float *out_y) {
     for (int tries = 0; tries < 600; tries++) {
-        int tx = 65 + (int)(randf() * (float)(WORLD_TILES_W - 80));
+        int tx = 16 + (int)(randf() * (float)(WORLD_TILES_W - 32));
         int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
         if (!world_is_coast(&g->world, tx, ty)) continue;
         float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
@@ -198,7 +198,7 @@ static int find_coast_spot(const Game *g, float *out_x, float *out_y) {
 
 static int find_beach_spot(const Game *g, int min_dist, float *out_x, float *out_y) {
     for (int tries = 0; tries < 600; tries++) {
-        int tx = 65 + (int)(randf() * (float)(WORLD_TILES_W - 80));
+        int tx = 16 + (int)(randf() * (float)(WORLD_TILES_W - 32));
         int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
         TileType t = (TileType)g->world.tiles[ty][tx];
         if (t != TILE_SAND && !(t == TILE_GRASS && world_is_coast(&g->world, tx, ty))) {
@@ -357,7 +357,7 @@ static void place_nuclear_reactor(Game *g) {
     if (best_id == 0) return;
 
     for (int tries = 0; tries < 500; tries++) {
-        int tx = 65 + (int)(randf() * (float)(WORLD_TILES_W - 80));
+        int tx = 16 + (int)(randf() * (float)(WORLD_TILES_W - 32));
         int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
         if (island_id[ty][tx] != best_id) continue;
         TileType t = (TileType)g->world.tiles[ty][tx];
@@ -513,7 +513,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     int init_planes = (diff == DIFF_EASY) ? 3 : (diff == DIFF_NORMAL ? 5 : 8);
     for (int i = 0; i < init_planes; i++) {
         spawn_enemy(g, ENEMY_FIGHTER,
-                    1400.0f + randf() * (float)(WORLD_W - 1800),
+                    260.0f + randf() * (float)(WORLD_W - 520),
                     600.0f + randf() * (float)(WORLD_H - 1200));
     }
 

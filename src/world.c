@@ -93,8 +93,8 @@ typedef struct {
 void world_generate(World *w, uint32_t seed) {
     w->seed = seed;
 
-    /* Generate ~18 randomized island centers across the 5x10 world,
-       avoiding the western carrier sea lane and top/bottom edges. */
+    /* Generate ~20 randomized island centers on both west and east sides of the
+       central carrier sea lane, avoiding top/bottom edges. */
     #define NUM_ISLANDS 20
     IslandBlob islands[NUM_ISLANDS];
     for (int i = 0; i < NUM_ISLANDS; i++) {
@@ -103,13 +103,18 @@ void world_generate(World *w, uint32_t seed) {
         uint32_t h3 = hash2d(i, 3, seed);
         uint32_t h4 = hash2d(i, 4, seed);
 
-        /* Place islands mostly east of the carrier lane (x > 1050) */
         float x_norm = (float)(h1 & 0xFFFFu) / 65535.0f;
         float y_norm = (float)(h2 & 0xFFFFu) / 65535.0f;
-        islands[i].cx = 1100.0f + x_norm * (float)(WORLD_W - 1450);
+        if (i & 1) {
+            /* West archipelago */
+            islands[i].cx = 400.0f + x_norm * (float)(CARRIER_LANE_X - 820);
+        } else {
+            /* East archipelago */
+            islands[i].cx = (float)(CARRIER_LANE_X + 420) + x_norm * (float)(WORLD_W - CARRIER_LANE_X - 820);
+        }
         islands[i].cy = 450.0f + y_norm * (float)(WORLD_H - 900);
-        islands[i].rx = 260.0f + (float)(h3 % 340);
-        islands[i].ry = 240.0f + (float)(h4 % 360);
+        islands[i].rx = 260.0f + (float)(h3 % 320);
+        islands[i].ry = 240.0f + (float)(h4 % 340);
     }
 
     static float tile_fbm[WORLD_TILES_H][WORLD_TILES_W];
