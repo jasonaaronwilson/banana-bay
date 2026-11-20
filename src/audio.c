@@ -25,6 +25,10 @@ static int g_muted = 0;
 static int g_rotor_active = 0;
 static float g_rotor_speed = 0.0f;
 static float g_rotor_phase = 0.0f;
+static int g_music_active = 0;
+static float g_music_time = 0.0f;
+static float g_music_mel_phase = 0.0f;
+static float g_music_bass_phase = 0.0f;
 static uint32_t g_noise_state = 0x12345678u;
 
 static float next_noise(void) {
@@ -46,6 +50,56 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
 
     for (int i = 0; i < samples; i++) {
         float mix = 0.0f;
+
+        /* Soft navy/military title theme (stately C-minor naval march) */
+        if (g_music_active) {
+            const float step_dur = 0.30f; /* ~100 BPM eighth notes */
+            const int num_steps = 32;
+            float loop_dur = step_dur * (float)num_steps;
+            g_music_time = fmodf(g_music_time + dt, loop_dur);
+            int step = (int)(g_music_time / step_dur);
+            if (step >= num_steps) step = num_steps - 1;
+            float u = (g_music_time - (float)step * step_dur) / step_dur;
+
+            /* Stately naval horn melody (0 = rest) */
+            static const float mel_hz[32] = {
+                392.00f, 0.0f,    523.25f, 523.25f, 587.33f, 622.25f, 587.33f, 523.25f,
+                392.00f, 0.0f,    466.16f, 523.25f, 466.16f, 392.00f, 349.23f, 0.0f,
+                311.13f, 0.0f,    392.00f, 466.16f, 523.25f, 587.33f, 622.25f, 587.33f,
+                523.25f, 466.16f, 392.00f, 349.23f, 392.00f, 0.0f,    261.63f, 0.0f
+            };
+            static const float bass_hz[32] = {
+                130.81f, 130.81f, 98.00f,  98.00f,  103.83f, 103.83f, 98.00f,  98.00f,
+                130.81f, 130.81f, 116.54f, 116.54f, 103.83f, 103.83f, 98.00f,  98.00f,
+                155.56f, 155.56f, 116.54f, 116.54f, 103.83f, 103.83f, 98.00f,  98.00f,
+                130.81f, 116.54f, 103.83f, 98.00f,  130.81f, 98.00f,  130.81f, 0.0f
+            };
+
+            float mf = mel_hz[step];
+            if (mf > 0.0f) {
+                g_music_mel_phase += mf * dt;
+                if (g_music_mel_phase >= 1.0f) g_music_mel_phase -= 1.0f;
+                float env = (u < 0.08f) ? (u / 0.08f) : (1.0f - (u - 0.08f) * 0.65f);
+                /* Warm triangle-like horn tone */
+                float tri = 1.0f - 4.0f * fabsf(g_music_mel_phase - 0.5f);
+                float sin_t = sinf(g_music_mel_phase * 2.0f * (float)M_PI);
+                mix += (tri * 0.45f + sin_t * 0.55f) * env * 0.065f;
+            }
+
+            float bf = bass_hz[step];
+            if (bf > 0.0f) {
+                g_music_bass_phase += bf * dt;
+                if (g_music_bass_phase >= 1.0f) g_music_bass_phase -= 1.0f;
+                float benv = 1.0f - u * 0.55f;
+                mix += sinf(g_music_bass_phase * 2.0f * (float)M_PI) * benv * 0.055f;
+            }
+
+            /* Soft brushed snare march pulse on beats */
+            if ((step & 1) == 0 || (step & 7) == 7) {
+                float senv = (u < 0.25f) ? (1.0f - u * 4.0f) : 0.0f;
+                mix += next_noise() * senv * senv * 0.018f;
+            }
+        }
 
         /* Subtle helicopter rotor thump */
         if (g_rotor_active) {
@@ -201,6 +255,14 @@ void audio_set_rotor(int active, float speed_ratio) {
     if (g_dev == 0) return;
     g_rotor_active = active;
     g_rotor_speed = speed_ratio;
+}
+
+void audio_set_music(int active) {
+    if (g_dev == 0) return;
+    if (active && !g_music_active) {
+        g_music_time = 0.0f;
+    }
+    g_music_active = active;
 }
 
 void audio_toggle_mute(void) {

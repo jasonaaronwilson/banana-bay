@@ -1118,15 +1118,18 @@ void game_update(Game *g, const InputState *in, float dt) {
 
     if (g->state == STATE_TITLE) {
         audio_set_rotor(0, 0.0f);
+        audio_set_music(1);
         if (in->diff_delta != 0) {
             int d = ((int)g->difficulty + in->diff_delta + 3) % 3;
             g->difficulty = (Difficulty)d;
         }
         if (in->confirm_pressed) {
+            audio_set_music(0);
             game_start_new(g, g->difficulty, (uint32_t)time(NULL) ^ (uint32_t)(g->time_sec * 1000.0f));
         }
         return;
     }
+    audio_set_music(0);
 
     if (g->state == STATE_PAUSED) {
         audio_set_rotor(0, 0.0f);
