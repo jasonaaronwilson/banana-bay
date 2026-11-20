@@ -6,6 +6,10 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 
+EM_JS(void, web_quit_redirect, (void), {
+    window.location.href = 'about:blank';
+});
+
 EM_JS(void, web_poll_gamepad, (float *out_mx, float *out_my, int *out_gun, int *out_bomb, int *out_start, int *out_a, int *out_b), {
     var mx = 0.0, my = 0.0, gun = 0, bomb = 0, start = 0, ba = 0, bb = 0;
     var pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -323,7 +327,9 @@ static void main_loop_step(void *arg) {
     if (game->should_quit) {
         app->running = 0;
 #ifdef __EMSCRIPTEN__
+        audio_shutdown();
         emscripten_cancel_main_loop();
+        web_quit_redirect();
 #endif
         return;
     }
