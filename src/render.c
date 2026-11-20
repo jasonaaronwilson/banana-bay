@@ -897,8 +897,10 @@ void render_game(const Game *g, Framebuffer *f) {
         gfx_text(f, 330, 355, 2, COL_WHITE, "FINAL SCORE: %d", g->score);
         gfx_text(f, 330, 385, 2, COL_YELLOW, "FACTORIES DESTROYED: %d", g->factories_destroyed);
 
-        const char *again = "PRESS ENTER TO RETURN TO TITLE";
-        gfx_text(f, (SCREEN_W - gfx_text_width(2, again)) / 2, 435, 2, COL_CYAN, "%s", again);
+        if (g->end_screen_timer <= 0.0f) {
+            const char *again = "PRESS ENTER OR START/A TO CONTINUE";
+            gfx_text(f, (SCREEN_W - gfx_text_width(2, again)) / 2, 435, 2, COL_CYAN, "%s", again);
+        }
     }
 
     if (g->quit_prompt) {

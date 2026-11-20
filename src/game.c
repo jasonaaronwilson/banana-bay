@@ -548,8 +548,11 @@ static void damage_player(Game *g, int dmg) {
         g->player.lives--;
         if (g->player.lives <= 0) {
             g->player.hp = 0;
+            snprintf(g->gameover_reason, sizeof(g->gameover_reason), "ALL HELICOPTERS LOST!");
+            g->end_screen_timer = 1.6f;
             g->state = STATE_GAMEOVER;
             audio_set_rotor(0, 0.0f);
+            audio_set_gun(0);
             audio_play(SFX_GAMEOVER);
             return;
         }
@@ -1041,8 +1044,11 @@ static void update_projectiles(Game *g, float dt) {
                 if (g->carrier.hp <= 0) {
                     g->carrier.hp = 0;
                     spawn_explosion(g, g->carrier.x, g->carrier.y, 60, 180.0f);
+                    snprintf(g->gameover_reason, sizeof(g->gameover_reason), "FRIENDLY CARRIER SUNK!");
+                    g->end_screen_timer = 1.6f;
                     g->state = STATE_GAMEOVER;
                     audio_set_rotor(0, 0.0f);
+                    audio_set_gun(0);
                     audio_play(SFX_GAMEOVER);
                 }
             }
@@ -1075,8 +1081,10 @@ static void update_projectiles(Game *g, float dt) {
                         world_stamp_crater(&g->world, (int)st->x, (int)st->y, 44);
                         snprintf(g->gameover_reason, sizeof(g->gameover_reason),
                                  "NUCLEAR REACTOR BOMBED - MELTDOWN!");
+                        g->end_screen_timer = 1.6f;
                         g->state = STATE_GAMEOVER;
                         audio_set_rotor(0, 0.0f);
+                        audio_set_gun(0);
                         audio_play(SFX_GAMEOVER);
                         return;
                     }
@@ -1165,7 +1173,9 @@ void game_update(Game *g, const InputState *in, float dt) {
     if (g->state == STATE_VICTORY || g->state == STATE_GAMEOVER) {
         audio_set_rotor(0, 0.0f);
         audio_set_gun(0);
-        if (in->confirm_pressed) {
+        if (g->end_screen_timer > 0.0f) {
+            g->end_screen_timer -= dt;
+        } else if (in->confirm_pressed) {
             g->state = STATE_TITLE;
         }
         return;
@@ -1185,8 +1195,10 @@ void game_update(Game *g, const InputState *in, float dt) {
     update_projectiles(g, dt);
 
     if (g->factories_alive <= 0 && g->state == STATE_PLAYING) {
+        g->end_screen_timer = 1.6f;
         g->state = STATE_VICTORY;
         audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
         audio_play(SFX_VICTORY);
     }
 }

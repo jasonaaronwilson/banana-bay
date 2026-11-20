@@ -166,6 +166,7 @@ typedef struct {
     float status_timer;
     int status_is_alert;
     char gameover_reason[96];
+    float end_screen_timer;
     int quit_prompt;
     int should_quit;
 } Game;
