@@ -49,12 +49,15 @@ $(RELEASE_BIN): $(OBJS) | $(RELEASE_DIR)
 $(RELEASE_ARM64_BIN): $(ARM64_OBJS) | $(RELEASE_DIR)
 	$(CC) $(ARM64_OBJS) -o $@ $(ARM64_STATIC_LDFLAGS)
 
-$(RELEASE_WEB_HTML): $(SRCS) web/shell.html VERSION | $(OBJ_DIR) $(RELEASE_DIR)
+$(RELEASE_WEB_HTML): $(SRCS) web/shell.html web/sw.js VERSION | $(OBJ_DIR) $(RELEASE_DIR)
 	@if [ ! -f $(EM_CACHE)/sysroot_install.stamp ]; then \
 		mkdir -p $(EM_CACHE) && cp -rn /usr/share/emscripten/cache/* $(EM_CACHE)/; \
 	fi
 	EM_CACHE=$(EM_CACHE) EM_FROZEN_CACHE=0 $(EMCC) $(EM_CFLAGS) $(SRCS) -lm -o $(OBJ_DIR)/banana-bay-web.js
 	python3 -c 'import pathlib; h=pathlib.Path("web/shell.html").read_text(); j=pathlib.Path("$(OBJ_DIR)/banana-bay-web.js").read_text(); pathlib.Path("$@").write_text(h.replace("{{{ SCRIPT }}}", "<script>\n" + j + "\n</script>"))'
+	mkdir -p docs
+	cp "$@" docs/index.html
+	sed "s/__VERSION__/$(VERSION)/g" web/sw.js > docs/sw.js
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c VERSION | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
