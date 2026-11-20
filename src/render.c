@@ -229,29 +229,66 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             break;
         }
         case STRUCT_BUNGALOW: {
-            int huts = s->size + 1; /* 1..3 small beach bungalows */
             int damaged = (s->hp < s->max_hp);
             int heavy = (s->hp * 2 <= s->max_hp);
-            static const int hx[3] = {-9, 9, 0};
-            static const int hy[3] = {-5, -3, 8};
-            for (int i = 0; i < huts; i++) {
-                int bx = sx + (huts == 1 ? 0 : hx[i]);
-                int by = sy + (huts == 1 ? 0 : hy[i]);
-                /* Shadow & wooden deck */
-                gfx_rect(f, bx - 5, by - 3, 13, 10, COL_BLACK);
-                gfx_rect(f, bx - 7, by - 5, 14, 10, damaged ? COL_BROWN_DARK : COL_BROWN);
-                /* Terracotta / thatch roof */
-                uint8_t roof = damaged ? COL_BROWN_DARK : ((i & 1) ? COL_ORANGE : COL_YELLOW);
-                gfx_rect(f, bx - 6, by - 6, 12, 8, roof);
-                gfx_line(f, bx - 6, by - 2, bx + 5, by - 2, COL_BLACK);
-                if (damaged) {
-                    /* Charred hole & flickering fire/smoke */
-                    gfx_rect(f, bx - 2, by - 4, 5, 4, COL_BLACK);
-                    if (heavy || i == 0) {
+            if (s->size < 2) {
+                /* Natural coastal cottages sitting directly on the beach/grass (no boxy slab) */
+                static const int cx[3] = {-15, 14, -1};
+                static const int cy[3] = {-10, -6, 12};
+                for (int i = 0; i < 3; i++) {
+                    int bx = sx + cx[i];
+                    int by = sy + cy[i];
+                    /* Soft drop shadow */
+                    gfx_rect(f, bx - 6, by - 3, 16, 11, COL_BLACK);
+                    /* Whitewashed cottage walls */
+                    gfx_rect(f, bx - 8, by - 5, 16, 10, damaged ? COL_GRAY_MID : COL_WHITE);
+                    /* Two-tone pitched terracotta roof (sunlit top, shaded bottom) */
+                    uint8_t top_col = damaged ? COL_BROWN_DARK : ((i == 1) ? COL_SAND_LIGHT : COL_ORANGE);
+                    uint8_t bot_col = damaged ? COL_BLACK : ((i == 1) ? COL_BROWN : COL_RED_DARK);
+                    gfx_rect(f, bx - 8, by - 6, 16, 4, top_col);
+                    gfx_rect(f, bx - 8, by - 2, 16, 4, bot_col);
+                    gfx_line(f, bx - 8, by - 2, bx + 7, by - 2, COL_GRAY_LIGHT);
+                    if (damaged && (heavy || i == 0)) {
                         int fl = ((int)(time_sec * 12.0f) + i) & 1;
-                        gfx_circle(f, bx, by - 3, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
-                        int smk = (int)(sinf(time_sec * 4.0f + (float)i) * 2.0f);
-                        gfx_circle(f, bx + smk, by - 8, 2, COL_GRAY_DARK);
+                        gfx_rect(f, bx - 3, by - 4, 5, 4, COL_BLACK);
+                        gfx_circle(f, bx, by - 2, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
+                    }
+                }
+            } else {
+                /* Upscale big-island resort village on natural terrain: 2 villas, pool & tall glass tower */
+                /* Small turquoise resort pool with white coping */
+                gfx_rect(f, sx - 28, sy + 6, 20, 12, COL_WHITE);
+                gfx_rect(f, sx - 26, sy + 8, 16, 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
+
+                /* 2 neat beach villas */
+                static const int vx[2] = {-22, 22};
+                static const int vy[2] = {-14, 14};
+                for (int i = 0; i < 2; i++) {
+                    int bx = sx + vx[i];
+                    int by = sy + vy[i];
+                    gfx_rect(f, bx - 6, by - 3, 16, 11, COL_BLACK);
+                    gfx_rect(f, bx - 8, by - 5, 16, 10, damaged ? COL_GRAY_MID : COL_WHITE);
+                    gfx_rect(f, bx - 8, by - 6, 16, 4, damaged ? COL_BROWN_DARK : COL_ORANGE);
+                    gfx_rect(f, bx - 8, by - 2, 16, 4, damaged ? COL_BLACK : COL_RED_DARK);
+                    gfx_line(f, bx - 8, by - 2, bx + 7, by - 2, COL_GRAY_LIGHT);
+                }
+
+                /* Sleek tall glass tower */
+                int tx = sx + 6;
+                int ty = sy - 6;
+                gfx_rect(f, tx - 6, ty - 4, 24, 22, COL_BLACK); /* Tall shadow */
+                gfx_rect(f, tx - 12, ty - 10, 24, 20, damaged ? COL_GRAY_DARK : web_rgb(1, 2, 3));
+                gfx_rect_outline(f, tx - 12, ty - 10, 24, 20, COL_GRAY_LIGHT);
+                for (int ry = -6; ry <= 6; ry += 4) {
+                    gfx_rect(f, tx - 10, ty + ry, 20, 2, damaged ? COL_BLACK : web_rgb(2, 4, 5));
+                }
+                gfx_rect(f, tx - 7, ty - 5, 14, 10, damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT);
+
+                if (damaged) {
+                    int fl = ((int)(time_sec * 11.0f)) & 1;
+                    gfx_circle(f, tx, ty, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
+                    if (heavy) {
+                        gfx_circle(f, sx - 22, sy - 14, fl ? 3 : 4, COL_YELLOW);
                     }
                 }
             }
@@ -663,6 +700,9 @@ static void draw_hud(const Game *g, Framebuffer *f) {
                 hh = (s->size <= 1) ? 18.0f : 28.0f;
             } else if (s->type == STRUCT_NUCLEAR) {
                 hw = 34.0f; hh = 34.0f;
+            } else if (s->type == STRUCT_BUNGALOW) {
+                hw = (s->size == 2) ? 48.0f : 34.0f;
+                hh = (s->size == 2) ? 36.0f : 26.0f;
             }
             if (fabsf(g->player.x - s->x) < hw && fabsf(g->player.y - s->y) < hh) {
                 switch (s->type) {
@@ -677,7 +717,10 @@ static void draw_hud(const Game *g, Framebuffer *f) {
                     case STRUCT_BARRACKS:  over_label = "TROOP BARRACKS"; break;
                     case STRUCT_RADAR:     over_label = "RADAR / SAM SITE"; break;
                     case STRUCT_OIL_FIELD: over_label = "OIL STORAGE TANKS"; break;
-                    case STRUCT_BUNGALOW:  over_label = "BEACH BUNGALOWS (CIVILIAN)"; break;
+                    case STRUCT_BUNGALOW:
+                        over_label = (s->size == 2) ? "UPSCALE BEACH VILLAGE (CIVILIAN)"
+                                                    : "COASTAL VILLAGE (CIVILIAN)";
+                        break;
                     case STRUCT_TOWER:     over_label = "RESIDENTIAL TOWER (CIVILIAN)"; break;
                     case STRUCT_NUCLEAR:   over_label = "NUCLEAR REACTOR (DO NOT BOMB!)"; break;
                 }

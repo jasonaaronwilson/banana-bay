@@ -265,8 +265,8 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
                     break;
                 }
                 case STRUCT_BUNGALOW:
-                    s->size = (int)(randf() * 3.0f); /* 1..3 huts */
-                    s->max_hp = 20;
+                    s->size = (randf() < 0.5f) ? 0 : 1; /* 0..1 small coastal village; 2 = upscale (big island) */
+                    s->max_hp = 35;
                     break;
                 case STRUCT_TOWER:
                     s->size = (randf() < 0.5f) ? 0 : 1;
@@ -330,6 +330,21 @@ static void place_nuclear_reactor(Game *g) {
                         qx[tail] = nx;
                         qy[tail] = ny;
                         tail++;
+                    }
+                }
+            }
+
+            /* Upgrade beach villages on large islands (>= 220 tiles) to upscale resort villages */
+            if (tail >= 220) {
+                for (int s = 0; s < MAX_STRUCTURES; s++) {
+                    if (!g->structures[s].active || g->structures[s].type != STRUCT_BUNGALOW) continue;
+                    int bx = (int)(g->structures[s].x / TILE_SIZE);
+                    int by = (int)(g->structures[s].y / TILE_SIZE);
+                    if ((unsigned)bx < WORLD_TILES_W && (unsigned)by < WORLD_TILES_H &&
+                        island_id[by][bx] == cur_id) {
+                        g->structures[s].size = 2;
+                        g->structures[s].max_hp = 55;
+                        g->structures[s].hp = 55;
                     }
                 }
             }
@@ -472,10 +487,10 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
         }
     }
 
-    /* Civilian infrastructure mostly along beaches */
-    for (int i = 0; i < 16; i++) {
+    /* Civilian beach villages (upgraded to upscale villages with glass towers on big islands) */
+    for (int i = 0; i < 14; i++) {
         float bx, by;
-        if (find_beach_spot(g, 90, &bx, &by)) {
+        if (find_beach_spot(g, 140, &bx, &by)) {
             add_structure(g, STRUCT_BUNGALOW, bx, by, 0);
         }
     }
