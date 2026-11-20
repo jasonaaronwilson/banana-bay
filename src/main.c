@@ -5,11 +5,73 @@
 #include <SDL2/SDL.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+
+EM_JS(void, web_poll_gamepad, (float *out_mx, float *out_my, int *out_gun, int *out_bomb, int *out_start, int *out_a, int *out_b), {
+    var mx = 0.0, my = 0.0, gun = 0, bomb = 0, start = 0, ba = 0, bb = 0;
+    var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (var i = 0; i < pads.length; i++) {
+        var gp = pads[i];
+        if (!gp || !gp.connected) continue;
+        var ax0 = gp.axes.length > 0 ? gp.axes[0] : 0;
+        var ax1 = gp.axes.length > 1 ? gp.axes[1] : 0;
+        if (Math.abs(ax0) > 0.22) mx += ax0;
+        if (Math.abs(ax1) > 0.22) my += ax1;
+
+        var b = gp.buttons;
+        if (gp.mapping === 'standard') {
+            if (b.length > 12 && b[12].pressed) my -= 1.0;
+            if (b.length > 13 && b[13].pressed) my += 1.0;
+            if (b.length > 14 && b[14].pressed) mx -= 1.0;
+            if (b.length > 15 && b[15].pressed) mx += 1.0;
+            if (b.length > 0 && b[0].pressed) { gun = 1; ba = 1; }
+            if ((b.length > 1 && b[1].pressed) || (b.length > 2 && b[2].pressed)) { bomb = 1; }
+            if (b.length > 1 && b[1].pressed) bb = 1;
+            if (b.length > 7 && b[7].pressed) gun = 1;
+            if (b.length > 6 && b[6].pressed) bomb = 1;
+            if (b.length > 9 && b[9].pressed) start = 1;
+        } else {
+            /* Non-standard Linux/evdev gamepad in browser (e.g. GameSir-Tegenaria Lite) */
+            if (gp.axes.length > 7) {
+                if (gp.axes[6] < -0.5) mx -= 1.0;
+                if (gp.axes[6] >  0.5) mx += 1.0;
+                if (gp.axes[7] < -0.5) my -= 1.0;
+                if (gp.axes[7] >  0.5) my += 1.0;
+            }
+            if (gp.axes.length > 9 && gp.axes[9] >= -1.0 && gp.axes[9] <= 1.0) {
+                var h = gp.axes[9];
+                if (h < -0.9) { my -= 1.0; }
+                else if (h < -0.6) { my -= 1.0; mx += 1.0; }
+                else if (h < -0.3) { mx += 1.0; }
+                else if (h < 0.0)  { my += 1.0; mx += 1.0; }
+                else if (h < 0.3)  { my += 1.0; }
+                else if (h < 0.6)  { my += 1.0; mx -= 1.0; }
+                else if (h < 0.9)  { mx -= 1.0; }
+                else { my -= 1.0; mx -= 1.0; }
+            }
+            if (b.length > 0 && b[0].pressed) { gun = 1; ba = 1; }
+            if ((b.length > 1 && b[1].pressed) || (b.length > 3 && b[3].pressed)) { bomb = 1; }
+            if (b.length > 1 && b[1].pressed) bb = 1;
+            if (gp.axes.length > 4 && gp.axes[4] > 0.25) gun = 1;
+            if (gp.axes.length > 5 && gp.axes[5] > 0.25) bomb = 1;
+            if (b.length > 11 && b[11].pressed) start = 1;
+        }
+        break;
+    }
+    HEAPF32[out_mx >> 2] = mx;
+    HEAPF32[out_my >> 2] = my;
+    HEAP32[out_gun >> 2] = gun;
+    HEAP32[out_bomb >> 2] = bomb;
+    HEAP32[out_start >> 2] = start;
+    HEAP32[out_a >> 2] = ba;
+    HEAP32[out_b >> 2] = bb;
+});
 #endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int g_debug_input = 0;
 
 static SDL_GameController *open_first_controller(SDL_Joystick **out_joy) {
     for (int i = 0; i < SDL_NumJoysticks(); i++) {
@@ -18,6 +80,11 @@ static SDL_GameController *open_first_controller(SDL_Joystick **out_joy) {
             if (gc) {
                 fprintf(stderr, "[input] GameController: %s\n",
                         SDL_GameControllerName(gc) ? SDL_GameControllerName(gc) : "unknown");
+                if (g_debug_input) {
+                    char *m = SDL_GameControllerMapping(gc);
+                    fprintf(stderr, "[input] Mapping: %s\n", m ? m : "(null)");
+                    SDL_free(m);
+                }
                 return gc;
             }
         }
@@ -33,11 +100,13 @@ static SDL_GameController *open_first_controller(SDL_Joystick **out_joy) {
     return NULL;
 }
 
+#ifndef __EMSCRIPTEN__
 static float apply_deadzone(Sint16 raw, float deadzone) {
     float v = (float)raw / 32767.0f;
     if (fabsf(v) < deadzone) return 0.0f;
     return v;
 }
+#endif
 
 typedef struct {
     SDL_Window *window;
@@ -116,6 +185,12 @@ static void main_loop_step(void *arg) {
                     break;
             }
         } else if (ev.type == SDL_CONTROLLERBUTTONDOWN) {
+#ifndef __EMSCRIPTEN__
+            if (g_debug_input) {
+                fprintf(stderr, "[input] GC button down: %d (%s)\n",
+                        ev.cbutton.button,
+                        SDL_GameControllerGetStringForButton((SDL_GameControllerButton)ev.cbutton.button));
+            }
             if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_START) {
                 if (game->state == STATE_PLAYING || game->state == STATE_PAUSED) {
                     in.pause_pressed = 1;
@@ -134,6 +209,16 @@ static void main_loop_step(void *arg) {
                 if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) in.diff_delta = -1;
                 if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) in.diff_delta = 1;
             }
+#endif
+        } else if (ev.type == SDL_JOYBUTTONDOWN && g_debug_input) {
+            fprintf(stderr, "[input] Joy button down: %d\n", ev.jbutton.button);
+        } else if (ev.type == SDL_CONTROLLERAXISMOTION && g_debug_input) {
+            if (abs(ev.caxis.value) > 8000) {
+                fprintf(stderr, "[input] GC axis %d (%s) = %d\n",
+                        ev.caxis.axis,
+                        SDL_GameControllerGetStringForAxis((SDL_GameControllerAxis)ev.caxis.axis),
+                        ev.caxis.value);
+            }
         }
     }
 
@@ -150,6 +235,42 @@ static void main_loop_step(void *arg) {
         in.drop_bomb = 1;
     }
 
+#ifdef __EMSCRIPTEN__
+    {
+        static int prev_wstart = 0, prev_wa = 0, prev_wb = 0, prev_wup = 0, prev_wdown = 0;
+        float wmx = 0.0f, wmy = 0.0f;
+        int wgun = 0, wbomb = 0, wstart = 0, wa = 0, wb = 0;
+        web_poll_gamepad(&wmx, &wmy, &wgun, &wbomb, &wstart, &wa, &wb);
+        in.move_x += wmx;
+        in.move_y += wmy;
+        if (wgun) in.fire_gun = 1;
+        if (wbomb) in.drop_bomb = 1;
+
+        if (wstart && !prev_wstart) {
+            if (game->state == STATE_PLAYING || game->state == STATE_PAUSED) {
+                in.pause_pressed = 1;
+            } else {
+                in.confirm_pressed = 1;
+            }
+        }
+        if (wa && !prev_wa && (game->state != STATE_PLAYING || game->quit_prompt)) {
+            in.confirm_pressed = 1;
+        }
+        if (wb && !prev_wb && game->quit_prompt) {
+            in.no_pressed = 1;
+        }
+        int wup = (wmy < -0.5f), wdown = (wmy > 0.5f);
+        if (game->state == STATE_TITLE) {
+            if (wup && !prev_wup) in.diff_delta = -1;
+            if (wdown && !prev_wdown) in.diff_delta = 1;
+        }
+        prev_wstart = wstart;
+        prev_wa = wa;
+        prev_wb = wb;
+        prev_wup = wup;
+        prev_wdown = wdown;
+    }
+#else
     if (app->controller) {
         float ax = apply_deadzone(SDL_GameControllerGetAxis(app->controller, SDL_CONTROLLER_AXIS_LEFTX), 0.22f);
         float ay = apply_deadzone(SDL_GameControllerGetAxis(app->controller, SDL_CONTROLLER_AXIS_LEFTY), 0.22f);
@@ -188,6 +309,7 @@ static void main_loop_step(void *arg) {
             in.drop_bomb = 1;
         }
     }
+#endif
 
     in.drop_bomb_pressed = (in.drop_bomb && !app->prev_bomb);
     app->prev_bomb = in.drop_bomb;
@@ -230,6 +352,9 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             printf("Banana Bay v%s\n", BANANA_BAY_VERSION);
             return 0;
+        }
+        if (strcmp(argv[i], "--debug-input") == 0) {
+            g_debug_input = 1;
         }
     }
 
