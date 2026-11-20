@@ -19,6 +19,7 @@ void audio_init(void);
 void audio_shutdown(void);
 void audio_play(SfxType sfx);
 void audio_set_rotor(int active, float speed_ratio);
+void audio_set_gun(int active);
 void audio_set_music(int active);
 void audio_toggle_mute(void);
 int audio_is_muted(void);

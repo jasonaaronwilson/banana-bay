@@ -676,23 +676,31 @@ static void update_player(Game *g, const InputState *in, float dt) {
     p->rotor_phase += (18.0f + spd * 0.04f) * dt;
     audio_set_rotor(1, spd / max_spd);
 
-    /* Machine gun fire with short burst pauses scaled by difficulty */
+    /* Machine gun fire: single tap plays crisp shot; holding spins up rotary BRRRRRRT */
     if (!in->fire_gun) {
         p->gun_burst = 0;
+        audio_set_gun(0);
     } else if (p->gun_cooldown <= 0.0f) {
         float ca = cosf(p->angle), sa = sinf(p->angle);
         spawn_bullet(g, 1, p->x + ca * 22.0f, p->y + sa * 22.0f,
                      p->vx * 0.3f + ca * 640.0f, p->vy * 0.3f + sa * 640.0f,
                      10, COL_YELLOW, 0.75f);
-        audio_play(SFX_GUN);
+        if (p->gun_burst == 0) {
+            audio_play(SFX_GUN);
+        } else {
+            audio_set_gun(1);
+        }
         p->gun_burst++;
         if (p->gun_burst >= 8) {
             p->gun_burst = 0;
+            audio_set_gun(0);
             p->gun_cooldown = (g->difficulty == DIFF_EASY) ? 0.18f :
                               (g->difficulty == DIFF_NORMAL ? 0.38f : 0.62f);
         } else {
             p->gun_cooldown = 0.045f;
         }
+    } else if (p->gun_burst == 0) {
+        audio_set_gun(0);
     }
 
     /* Bomb drop */
@@ -1115,6 +1123,7 @@ void game_update(Game *g, const InputState *in, float dt) {
 
     if (g->quit_prompt) {
         audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
         if (in->yes_pressed || in->confirm_pressed) {
             g->should_quit = 1;
         } else if (in->no_pressed || in->pause_pressed || in->quit_pressed) {
@@ -1148,12 +1157,14 @@ void game_update(Game *g, const InputState *in, float dt) {
 
     if (g->state == STATE_PAUSED) {
         audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
         if (in->pause_pressed) g->state = STATE_PLAYING;
         return;
     }
 
     if (g->state == STATE_VICTORY || g->state == STATE_GAMEOVER) {
         audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
         if (in->confirm_pressed) {
             g->state = STATE_TITLE;
         }

@@ -25,6 +25,11 @@ static int g_muted = 0;
 static int g_rotor_active = 0;
 static float g_rotor_speed = 0.0f;
 static float g_rotor_phase = 0.0f;
+static int g_gun_active = 0;
+static float g_gun_phase = 0.0f;
+static float g_gun_sub_phase = 0.0f;
+static float g_gun_ramp = 0.0f;
+static float g_gun_tail = 0.0f;
 static int g_music_active = 0;
 static float g_music_time = 0.0f;
 static float g_music_mel_phase = 0.0f;
@@ -110,6 +115,33 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
             float thump = sinf(g_rotor_phase * 2.0f * (float)M_PI * 2.0f) * env * 0.055f;
             float air = next_noise() * env * 0.025f;
             mix += thump + air;
+        }
+
+        /* A-10 / Phalanx CIWS rotary cannon ("BRRRRRRT") with spin-up ramp */
+        if (g_gun_active || g_gun_tail > 0.0f) {
+            if (g_gun_active) {
+                g_gun_ramp += dt * 6.5f; /* ~0.15s spin-up ramp */
+                if (g_gun_ramp > 1.0f) g_gun_ramp = 1.0f;
+            } else {
+                g_gun_tail -= dt;
+                if (g_gun_tail < 0.0f) g_gun_tail = 0.0f;
+            }
+            float gain = g_gun_active ? g_gun_ramp : ((g_gun_tail / 0.11f) * g_gun_ramp);
+
+            /* Spins up from 28 Hz to 72 Hz rotary firing cycle */
+            float gun_hz = 28.0f + 44.0f * g_gun_ramp;
+            g_gun_phase += gun_hz * dt;
+            if (g_gun_phase >= 1.0f) g_gun_phase -= 1.0f;
+            g_gun_sub_phase += (24.0f + 28.0f * g_gun_ramp) * dt;
+            if (g_gun_sub_phase >= 1.0f) g_gun_sub_phase -= 1.0f;
+
+            float pulse = 1.0f - g_gun_phase;
+            float snap = pulse * pulse;
+            float saw = (1.0f - 2.0f * g_gun_phase);
+            float buzz = saw * 0.14f + sinf(g_gun_phase * 2.0f * (float)M_PI * 2.0f) * snap * 0.10f;
+            float rip = next_noise() * (0.35f + 0.65f * snap) * 0.18f;
+            float sub = sinf(g_gun_sub_phase * 2.0f * (float)M_PI) * 0.10f;
+            mix += (buzz + rip + sub) * gain;
         }
 
         /* Active SFX voices */
@@ -255,6 +287,17 @@ void audio_set_rotor(int active, float speed_ratio) {
     if (g_dev == 0) return;
     g_rotor_active = active;
     g_rotor_speed = speed_ratio;
+}
+
+void audio_set_gun(int active) {
+    if (g_dev == 0) return;
+    if (active && !g_gun_active) {
+        g_gun_ramp = 0.0f;
+        g_gun_tail = 0.0f;
+    } else if (g_gun_active && !active) {
+        g_gun_tail = 0.11f; /* Short bassy muzzle echo tail when burst stops */
+    }
+    g_gun_active = active;
 }
 
 void audio_set_music(int active) {
