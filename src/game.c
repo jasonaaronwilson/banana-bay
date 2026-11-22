@@ -532,6 +532,19 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
                     600.0f + randf() * (float)(WORLD_H - 1200));
     }
 
+    /* Initial sea patrol (gunboats in open water) */
+    int init_boats = (diff == DIFF_EASY) ? 4 : (diff == DIFF_NORMAL ? 7 : 10);
+    for (int i = 0; i < init_boats; i++) {
+        for (int tries = 0; tries < 60; tries++) {
+            float bx = 260.0f + randf() * (float)(WORLD_W - 520);
+            float by = 520.0f + randf() * (float)(WORLD_H - 1350);
+            if (!world_is_land(&g->world, (int)bx, (int)by)) {
+                spawn_enemy(g, ENEMY_BOAT, bx, by);
+                break;
+            }
+        }
+    }
+
     g->state = STATE_PLAYING;
     fprintf(stderr, "[game] World ready: %d structures, %d factories\n",
             g->num_structures, g->factories_alive);
@@ -840,7 +853,7 @@ static void update_structures(Game *g, float dt) {
             }
             s->spawn_timer -= dt * diff_mult;
             if (s->spawn_timer <= 0.0f) {
-                s->spawn_timer = 26.0f + randf() * 14.0f;
+                s->spawn_timer = 15.0f + randf() * 9.0f;
                 spawn_enemy(g, ENEMY_BOAT, s->x - 36.0f, s->y);
             }
         } else if (s->type == STRUCT_AA || s->type == STRUCT_RADAR) {

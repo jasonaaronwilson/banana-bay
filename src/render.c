@@ -290,10 +290,32 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             break;
         }
         case STRUCT_RADAR: {
-            gfx_box_3d(f, sx - 9, sy - 13, 20, 18, 7, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
-            gfx_circle_outline(f, sx + 1, sy - 4, 8, COL_CYAN);
-            float ang = time_sec * 3.2f;
-            gfx_line(f, sx + 1, sy - 4, sx + 1 + (int)(cosf(ang) * 8.0f), sy - 4 + (int)(sinf(ang) * 8.0f), COL_GREEN_BRIGHT);
+            /* 2.5D concrete bunker base */
+            gfx_box_3d(f, sx - 9, sy - 3, 19, 13, 6, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+            /* Small SAM rail on right side of bunker */
+            gfx_line(f, sx + 7, sy + 6, sx + 12, sy - 1, COL_GRASS_MID);
+            gfx_line(f, sx + 8, sy + 6, sx + 13, sy - 1, COL_GRASS_DARK);
+            gfx_pixel(f, sx + 12, sy - 1, COL_RED);
+            /* Central rotating pedestal */
+            gfx_cyl_3d(f, sx + 1, sy - 4, 4, 5, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+            /* Tilted parabolic satellite dish with subtle scan pan */
+            float pan = sinf(time_sec * 1.2f + s->x * 0.01f) * 0.55f;
+            int dx = sx + 2 + (int)(sinf(pan) * 2.0f);
+            int dy = sy - 11;
+            /* Convex underside / back shell */
+            gfx_circle(f, dx - 2, dy + 2, 10, COL_GRAY_DARK);
+            /* Concave white dish face + shaded interior */
+            gfx_circle(f, dx, dy, 10, COL_WHITE);
+            gfx_circle(f, dx - 1, dy + 1, 7, COL_GRAY_LIGHT);
+            gfx_circle_outline(f, dx, dy, 10, COL_BLACK);
+            /* Feed-horn tripod struts & glowing receiver tip */
+            int hx = dx + (int)(sinf(pan) * 5.0f) + 2;
+            int hy = dy - 4;
+            gfx_line(f, dx - 6, dy - 4, hx, hy, COL_GRAY_DARK);
+            gfx_line(f, dx + 6, dy - 4, hx, hy, COL_GRAY_DARK);
+            gfx_line(f, dx,     dy + 7, hx, hy, COL_GRAY_DARK);
+            gfx_circle(f, hx, hy, 2, COL_BLACK);
+            gfx_pixel(f, hx, hy, (((int)(time_sec * 4.0f)) & 1) ? COL_CYAN : COL_GREEN_BRIGHT);
             break;
         }
         case STRUCT_OIL_FIELD: {
@@ -457,6 +479,24 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
     }
 }
 
+
+static void heli_pt(int sx, int sy, float c, float s, float fwd, float right, int *ox, int *oy) {
+    *ox = sx + (int)(c * fwd - s * right);
+    *oy = sy + (int)(s * fwd + c * right);
+}
+
+static void heli_quad(Framebuffer *f, int sx, int sy, float c, float s,
+                      float f0, float r0, float f1, float r1,
+                      float f2, float r2, float f3, float r3, uint8_t col) {
+    int x0, y0, x1, y1, x2, y2, x3, y3;
+    heli_pt(sx, sy, c, s, f0, r0, &x0, &y0);
+    heli_pt(sx, sy, c, s, f1, r1, &x1, &y1);
+    heli_pt(sx, sy, c, s, f2, r2, &x2, &y2);
+    heli_pt(sx, sy, c, s, f3, r3, &x3, &y3);
+    gfx_triangle(f, x0, y0, x1, y1, x2, y2, col);
+    gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
+}
+
 static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y) {
     int sx = (int)(e->x - cam_x);
     int sy = (int)(e->y - cam_y);
@@ -502,16 +542,59 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
             break;
         }
         case ENEMY_BOAT: {
-            /* Patrol gunboat */
-            int fx = sx + (int)(c * 14.0f);
-            int fy = sy + (int)(s * 14.0f);
-            int bx = sx - (int)(c * 14.0f);
-            int by = sy - (int)(s * 14.0f);
-            gfx_pixel(f, bx - (int)(s * 5), by + (int)(c * 5), COL_FOAM);
-            gfx_pixel(f, bx + (int)(s * 5), by - (int)(c * 5), COL_FOAM);
-            gfx_circle(f, sx, sy, 8, COL_GRAY_DARK);
-            gfx_line(f, bx, by, fx, fy, COL_RED);
-            gfx_circle(f, sx, sy, 3, COL_YELLOW);
+            /* Patrol gunboat with pointed bow, wake, deck, wheelhouse, and bow turret */
+            int w0x, w0y, w1x, w1y, w2x, w2y, w3x, w3y;
+            heli_pt(sx, sy, c, s, -14.0f, -3.0f, &w0x, &w0y);
+            heli_pt(sx, sy, c, s, -24.0f, -9.0f, &w1x, &w1y);
+            heli_pt(sx, sy, c, s, -14.0f,  3.0f, &w2x, &w2y);
+            heli_pt(sx, sy, c, s, -24.0f,  9.0f, &w3x, &w3y);
+            gfx_line(f, w0x, w0y, w1x, w1y, COL_FOAM);
+            gfx_line(f, w2x, w2y, w3x, w3y, COL_FOAM);
+            int stx, sty;
+            heli_pt(sx, sy, c, s, -17.0f, 0.0f, &stx, &sty);
+            gfx_circle(f, stx, sty, 2, COL_FOAM);
+
+            /* Naval hull (stern to midship + pointed bow) */
+            int bx, by, px, py, sx1, sy1;
+            heli_pt(sx, sy, c, s, 18.0f,  0.0f, &bx, &by);
+            heli_pt(sx, sy, c, s,  6.0f, -7.0f, &px, &py);
+            heli_pt(sx, sy, c, s,  6.0f,  7.0f, &sx1, &sy1);
+            gfx_triangle(f, bx, by, px, py, sx1, sy1, COL_ROCK_DARK);
+            heli_quad(f, sx, sy, c, s, 6.0f, -7.0f, 6.0f, 7.0f, -15.0f, 5.0f, -15.0f, -5.0f, COL_ROCK_DARK);
+
+            /* Inner gray deck */
+            int dbx, dby, dpx, dpy, dsx, dsy;
+            heli_pt(sx, sy, c, s, 14.0f,  0.0f, &dbx, &dby);
+            heli_pt(sx, sy, c, s,  5.0f, -5.0f, &dpx, &dpy);
+            heli_pt(sx, sy, c, s,  5.0f,  5.0f, &dsx, &dsy);
+            gfx_triangle(f, dbx, dby, dpx, dpy, dsx, dsy, COL_GRAY_MID);
+            heli_quad(f, sx, sy, c, s, 5.0f, -5.0f, 5.0f, 5.0f, -13.0f, 3.5f, -13.0f, -3.5f, COL_GRAY_MID);
+
+            /* Crisp gunwale outline */
+            int slx, sly, srx, sry;
+            heli_pt(sx, sy, c, s, -15.0f, -5.0f, &slx, &sly);
+            heli_pt(sx, sy, c, s, -15.0f,  5.0f, &srx, &sry);
+            gfx_line(f, bx, by, px, py, COL_GRAY_LIGHT);
+            gfx_line(f, bx, by, sx1, sy1, COL_GRAY_LIGHT);
+            gfx_line(f, px, py, slx, sly, COL_GRAY_LIGHT);
+            gfx_line(f, sx1, sy1, srx, sry, COL_GRAY_LIGHT);
+            gfx_line(f, slx, sly, srx, sry, COL_GRAY_LIGHT);
+
+            /* Raised wheelhouse / bridge */
+            heli_quad(f, sx, sy, c, s, 1.0f, -3.5f, 1.0f, 3.5f, -8.0f, 3.5f, -8.0f, -3.5f, COL_WHITE);
+            heli_quad(f, sx, sy, c, s, 2.0f, -2.8f, 2.0f, 2.8f,  0.0f, 2.8f,  0.0f, -2.8f, COL_CYAN);
+
+            /* Bow gun turret & forward barrel */
+            int gx, gy, gbx, gby;
+            heli_pt(sx, sy, c, s, 8.0f, 0.0f, &gx, &gy);
+            heli_pt(sx, sy, c, s, 15.0f, 0.0f, &gbx, &gby);
+            gfx_circle(f, gx, gy, 3, COL_RED_DARK);
+            gfx_line(f, gx, gy, gbx, gby, COL_YELLOW);
+
+            /* Stern flag / marker */
+            int fx, fy;
+            heli_pt(sx, sy, c, s, -11.0f, 0.0f, &fx, &fy);
+            gfx_pixel(f, fx, fy, COL_RED);
             break;
         }
         case ENEMY_CARRIER: {
@@ -534,22 +617,6 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
     }
 }
 
-static void heli_pt(int sx, int sy, float c, float s, float fwd, float right, int *ox, int *oy) {
-    *ox = sx + (int)(c * fwd - s * right);
-    *oy = sy + (int)(s * fwd + c * right);
-}
-
-static void heli_quad(Framebuffer *f, int sx, int sy, float c, float s,
-                      float f0, float r0, float f1, float r1,
-                      float f2, float r2, float f3, float r3, uint8_t col) {
-    int x0, y0, x1, y1, x2, y2, x3, y3;
-    heli_pt(sx, sy, c, s, f0, r0, &x0, &y0);
-    heli_pt(sx, sy, c, s, f1, r1, &x1, &y1);
-    heli_pt(sx, sy, c, s, f2, r2, &x2, &y2);
-    heli_pt(sx, sy, c, s, f3, r3, &x3, &y3);
-    gfx_triangle(f, x0, y0, x1, y1, x2, y2, col);
-    gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
-}
 
 static void draw_heli_at(Framebuffer *f, int sx, int sy, float angle, float rotor_phase) {
     float c = cosf(angle);
