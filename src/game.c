@@ -264,14 +264,18 @@ static void add_structure(Game *g, StructureType type, float x, float y, int bui
                     s->max_hp = (s->size == 0) ? 20 : (s->size == 1 ? 35 : 55);
                     break;
                 }
-                case STRUCT_BUNGALOW:
-                    s->size = (randf() < 0.5f) ? 0 : 1; /* 0..1 small coastal village; 2 = upscale (big island) */
-                    s->max_hp = 35;
+                case STRUCT_BUNGALOW: {
+                    float r = randf();
+                    s->size = (r < 0.35f) ? 0 : (r < 0.70f ? 1 : 2); /* 0=hamlet, 1=village, 2=large village, 3=resort town */
+                    s->max_hp = (s->size < 2) ? 35 : 55;
                     break;
-                case STRUCT_TOWER:
-                    s->size = (randf() < 0.5f) ? 0 : 1;
-                    s->max_hp = 70;
+                }
+                case STRUCT_TOWER: {
+                    float r = randf();
+                    s->size = (r < 0.25f) ? 0 : (r < 0.50f ? 1 : (r < 0.75f ? 2 : 3));
+                    s->max_hp = (s->size >= 2) ? 85 : 70;
                     break;
+                }
                 case STRUCT_NUCLEAR:
                     s->max_hp = 200;
                     break;
@@ -342,9 +346,9 @@ static void place_nuclear_reactor(Game *g) {
                     int by = (int)(g->structures[s].y / TILE_SIZE);
                     if ((unsigned)bx < WORLD_TILES_W && (unsigned)by < WORLD_TILES_H &&
                         island_id[by][bx] == cur_id) {
-                        g->structures[s].size = 2;
-                        g->structures[s].max_hp = 55;
-                        g->structures[s].hp = 55;
+                        g->structures[s].size = 3;
+                        g->structures[s].max_hp = 65;
+                        g->structures[s].hp = 65;
                     }
                 }
             }

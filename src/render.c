@@ -149,10 +149,106 @@ static void gfx_house_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
     gfx_rect(f, fx + rw - 6, fy, 3, 2, win_col);
 }
 
+static void draw_village_house(Framebuffer *f, int cx, int cy, int style, int damaged) {
+    const uint8_t roofs[5]  = {COL_RED_DARK,   COL_SAND_DARK,  COL_DEEP_SEA,  COL_BROWN_DARK, COL_GRASS_DARK};
+    const uint8_t ridges[5] = {COL_ORANGE,     COL_YELLOW,     COL_CYAN,      COL_RED,        COL_GRASS_MID};
+    const uint8_t fronts[5] = {COL_WHITE,      COL_SAND_LIGHT, COL_WHITE,     COL_SAND_LIGHT, COL_WHITE};
+    const uint8_t lefts[5]  = {COL_GRAY_MID,   COL_BROWN,      COL_GRAY_MID,  COL_BROWN_DARK, COL_GRAY_MID};
+    static const int widths[5]     = {15,             14,             16,            15,             21};
+    static const int depths[5]     = {8,              8,              9,             9,              10};
+    static const int heights[5]    = {6,              5,              6,             10,             6};
+    int k = style % 5;
+    int rw = widths[k], rd = depths[k], h = heights[k];
+    gfx_house_3d(f, cx - rw / 2, cy - rd / 2, rw, rd, h,
+                 damaged ? COL_BROWN_DARK : roofs[k],
+                 damaged ? COL_ROCK_DARK  : ridges[k],
+                 damaged ? COL_GRAY_DARK  : fronts[k],
+                 damaged ? COL_BLACK      : lefts[k],
+                 COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
+    if (k == 3) {
+        /* Extra upper-story window row for two-story townhouse */
+        int lw = oblique_lw(h);
+        gfx_rect(f, cx - rw / 2 + 3 - lw / 4, cy + rd / 2 + 2, 3, 2, damaged ? COL_BLACK : COL_YELLOW);
+        gfx_rect(f, cx + rw / 2 - 6 - lw / 4, cy + rd / 2 + 2, 3, 2, damaged ? COL_BLACK : COL_YELLOW);
+    }
+}
+
+static uint32_t village_hash(uint32_t x) {
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+}
+
+/* Modular ~34x28px village block sprites assembled into diverse neighborhoods */
+static void draw_village_block(Framebuffer *f, int cx, int cy, int block_type,
+                               uint32_t sub_seed, int damaged) {
+    int s0 = (int)(sub_seed % 5U);
+    int s1 = (int)((sub_seed >> 3) % 5U);
+    switch (block_type % 8) {
+        case 0: /* Cottage pair */
+            draw_village_house(f, cx - 7, cy - 6, (s0 == 3) ? 0 : s0, damaged);
+            draw_village_house(f, cx + 8, cy + 5, (s1 == 3 || s1 == 4) ? 1 : s1, damaged);
+            break;
+        case 1: /* Two-story townhouse + courtyard */
+            gfx_rect(f, cx - 12, cy - 8, 24, 18, damaged ? COL_ROCK_DARK : COL_GRASS_MID);
+            draw_village_house(f, cx, cy - 2, 3, damaged);
+            break;
+        case 2: /* Tropical market longhouse + awning */
+            draw_village_house(f, cx, cy - 3, 4, damaged);
+            gfx_rect(f, cx - 8, cy + 8, 16, 4, damaged ? COL_GRAY_DARK : COL_ORANGE);
+            gfx_rect(f, cx - 6, cy + 8, 4, 4, damaged ? COL_ROCK_DARK : COL_YELLOW);
+            gfx_rect(f, cx + 2, cy + 8, 4, 4, damaged ? COL_ROCK_DARK : COL_RED);
+            break;
+        case 3: /* Cobble fountain plaza */
+            gfx_rect(f, cx - 14, cy - 11, 28, 22, damaged ? COL_ROCK_DARK : COL_GRAY_MID);
+            gfx_rect_outline(f, cx - 14, cy - 11, 28, 22, COL_GRAY_DARK);
+            gfx_cyl_3d(f, cx + 1, cy - 1, 6, 4,
+                       damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA,
+                       damaged ? COL_GRAY_DARK : COL_WHITE, COL_GRAY_DARK);
+            break;
+        case 4: /* Villa + swimming pool */
+            gfx_rect(f, cx - 14, cy + 2, 14, 10, COL_WHITE);
+            gfx_rect(f, cx - 12, cy + 4, 10, 6, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
+            draw_village_house(f, cx + 5, cy - 5, (s0 % 3), damaged);
+            break;
+        case 5: /* Corner cafe / shop with striped awning */
+            gfx_box_3d(f, cx - 8, cy - 9, 18, 12, 7,
+                       damaged ? COL_BROWN_DARK : COL_SAND_LIGHT,
+                       damaged ? COL_GRAY_DARK : COL_WHITE,
+                       damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+            gfx_rect(f, cx - 10, cy + 3, 18, 3, damaged ? COL_GRAY_DARK : COL_RED);
+            gfx_rect(f, cx - 6,  cy + 3, 4, 3, damaged ? COL_ROCK_DARK : COL_WHITE);
+            gfx_rect(f, cx + 2,  cy + 3, 4, 3, damaged ? COL_ROCK_DARK : COL_WHITE);
+            break;
+        case 6: /* Tropical palm park */
+            gfx_rect(f, cx - 14, cy - 11, 28, 22, damaged ? COL_ROCK_DARK : COL_GRASS_MID);
+            gfx_rect(f, cx - 14, cy - 2, 28, 4, COL_SAND_DARK);
+            for (int p = -1; p <= 1; p += 2) {
+                int px = cx + p * 7;
+                int py = cy + p * 4;
+                gfx_line(f, px, py + 4, px + 1, py - 4, COL_BROWN);
+                gfx_circle(f, px + 1, py - 5, 4, damaged ? COL_BROWN_DARK : COL_GREEN_BRIGHT);
+            }
+            break;
+        case 7: /* Compact 2.5D glass resort mid-rise */
+            gfx_box_3d(f, cx - 9, cy - 14, 20, 13, 14,
+                       damaged ? COL_GRAY_DARK : COL_WHITE,
+                       damaged ? COL_GRAY_DARK : web_rgb(1, 3, 4),
+                       damaged ? COL_BLACK : web_rgb(0, 2, 3), COL_BLACK);
+            gfx_windows_3d(f, cx - 9, cy - 14, 20, 13, 14, 4, 3,
+                           damaged ? COL_BLACK : COL_CYAN,
+                           damaged ? COL_BLACK : COL_SHALLOW_SEA);
+            break;
+    }
+}
+
 static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int cam_y, float time_sec) {
     int sx = (int)(s->x - cam_x);
     int sy = (int)(s->y - cam_y);
-    if (sx < -96 || sx > SCREEN_W + 96 || sy < -96 || sy > SCREEN_H + 96) return;
+    if (sx < -112 || sx > SCREEN_W + 112 || sy < -112 || sy > SCREEN_H + 112) return;
 
     switch (s->type) {
         case STRUCT_FACTORY: {
@@ -352,87 +448,140 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
         case STRUCT_BUNGALOW: {
             int damaged = (s->hp < s->max_hp);
             int heavy = (s->hp * 2 <= s->max_hp);
-            if (s->size < 2) {
-                /* Natural 2.5D coastal cottages with pitched roofs, front doors & side walls */
-                static const int cx[3] = {-14, 15, 0};
-                static const int cy[3] = {-10, -6, 12};
-                for (int i = 0; i < 3; i++) {
-                    int bx = sx + cx[i];
-                    int by = sy + cy[i];
-                    uint8_t roof = damaged ? COL_BROWN_DARK : ((i == 1) ? COL_SAND_LIGHT : COL_RED_DARK);
-                    uint8_t ridge = damaged ? COL_ROCK_DARK : ((i == 1) ? COL_YELLOW : COL_ORANGE);
-                    uint8_t front = damaged ? COL_GRAY_DARK : COL_WHITE;
-                    uint8_t left = damaged ? COL_BLACK : COL_GRAY_MID;
-                    gfx_house_3d(f, bx - 7, by - 7, 15, 8, 6,
-                                 roof, ridge, front, left,
-                                 COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
-                    if (damaged && (heavy || i == 0)) {
-                        int fl = ((int)(time_sec * 12.0f) + i) & 1;
-                        gfx_rect(f, bx - 3, by - 5, 5, 4, COL_BLACK);
-                        gfx_circle(f, bx, by - 3, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
+            uint32_t vseed = village_hash((uint32_t)((int)s->x * 73856093) ^ (uint32_t)((int)s->y * 19349663) ^ (uint32_t)s->size);
+            if (s->size == 0) {
+                /* Small coastal hamlet: 2 varied modular blocks on a sandy lane */
+                gfx_rect(f, sx - 26, sy - 3, 52, 6, COL_SAND_DARK);
+                static const int hamlet_pool[5] = {0, 1, 2, 5, 6};
+                int b0 = hamlet_pool[vseed % 5U];
+                int b1 = hamlet_pool[(vseed >> 4) % 4U]; /* Keep at least one residential/market block */
+                draw_village_block(f, sx - 18, sy - 2, b0, vseed >> 8, damaged);
+                draw_village_block(f, sx + 18, sy + 2, b1, vseed >> 16, damaged);
+                if (damaged) {
+                    int fl = ((int)(time_sec * 12.0f)) & 1;
+                    gfx_circle(f, sx - 14, sy - 4, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
+                    if (heavy) gfx_circle(f, sx + 16, sy + 2, fl ? 3 : 2, COL_YELLOW);
+                }
+            } else if (s->size == 1) {
+                /* Medium village: 2x2 grid (4 modular blocks) with sandy cross-lanes */
+                gfx_rect(f, sx - 38, sy - 3, 76, 6, COL_SAND_DARK);
+                gfx_rect(f, sx - 3, sy - 32, 6, 64, COL_SAND_DARK);
+                static const int med_pool[7] = {0, 1, 2, 3, 4, 5, 6};
+                for (int gy = 0; gy < 2; gy++) {
+                    for (int gx = 0; gx < 2; gx++) {
+                        int idx = gy * 2 + gx;
+                        uint32_t h = village_hash(vseed + (uint32_t)idx * 97U);
+                        int bx = sx + (gx == 0 ? -20 : 20);
+                        int by = sy + (gy == 0 ? -17 : 17);
+                        draw_village_block(f, bx, by, med_pool[h % 7U], h >> 4, damaged);
                     }
+                }
+                if (damaged) {
+                    int fl = ((int)(time_sec * 12.0f)) & 1;
+                    gfx_circle(f, sx - 18, sy - 16, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
+                    if (heavy) gfx_circle(f, sx + 18, sy + 14, fl ? 3 : 4, COL_YELLOW);
                 }
             } else {
-                /* Upscale big-island 2.5D resort village: pool, 2 gabled villas & tall 2.5D glass tower */
-                gfx_rect(f, sx - 28, sy + 6, 20, 12, COL_WHITE);
-                gfx_rect(f, sx - 26, sy + 8, 16, 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
-
-                static const int vx[2] = {-20, 22};
-                static const int vy[2] = {-14, 14};
-                for (int i = 0; i < 2; i++) {
-                    int bx = sx + vx[i];
-                    int by = sy + vy[i];
-                    gfx_house_3d(f, bx - 7, by - 7, 15, 8, 6,
-                                 damaged ? COL_BROWN_DARK : COL_RED_DARK,
-                                 damaged ? COL_ROCK_DARK : COL_ORANGE,
-                                 damaged ? COL_GRAY_DARK : COL_WHITE,
-                                 damaged ? COL_BLACK : COL_GRAY_MID,
-                                 COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
+                /* Large sprawl village (size 2) or Big-Island Resort Town (size 3): 3x3 modular grid (~114x94px) */
+                int is_resort = (s->size >= 3);
+                uint8_t road_col = is_resort ? COL_GRAY_MID : COL_SAND_DARK;
+                gfx_rect(f, sx - 58, sy - 21, 116, 6, road_col);
+                gfx_rect(f, sx - 58, sy + 15, 116, 6, road_col);
+                gfx_rect(f, sx - 21, sy - 46, 6, 92, road_col);
+                gfx_rect(f, sx + 15, sy - 46, 6, 92, road_col);
+                static const int village_pool[7] = {0, 1, 2, 3, 4, 5, 6};
+                static const int resort_pool[7]  = {4, 7, 5, 3, 6, 1, 7};
+                for (int gy = -1; gy <= 1; gy++) {
+                    for (int gx = -1; gx <= 1; gx++) {
+                        int idx = (gy + 1) * 3 + (gx + 1);
+                        uint32_t h = village_hash(vseed + (uint32_t)idx * 131U);
+                        int bx = sx + gx * 37;
+                        int by = sy + gy * 31;
+                        int btype;
+                        if (gx == 0 && gy == 0 && (vseed & 1U)) {
+                            btype = 3; /* Optional central fountain square */
+                        } else if (is_resort) {
+                            btype = resort_pool[h % 7U];
+                        } else {
+                            btype = village_pool[h % 7U];
+                        }
+                        draw_village_block(f, bx, by, btype, h >> 4, damaged);
+                    }
                 }
-
-                /* Tall 2.5D reflective glass tower (perspective-aligned front + left curtain walls) */
-                int tx = sx, ty = sy - 20;
-                gfx_box_3d(f, tx, ty, 22, 14, 18,
-                           damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT,
-                           damaged ? COL_GRAY_DARK : web_rgb(1, 3, 4),
-                           damaged ? COL_BLACK : web_rgb(0, 2, 3), COL_BLACK);
-                gfx_windows_3d(f, tx, ty, 22, 14, 18, 4, 4,
-                               damaged ? COL_BLACK : COL_CYAN,
-                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
-                gfx_rect(f, tx + 4, ty + 3, 14, 8, damaged ? COL_GRAY_MID : COL_WHITE);
-
                 if (damaged) {
                     int fl = ((int)(time_sec * 11.0f)) & 1;
-                    gfx_circle(f, tx + 8, ty + 6, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
-                    if (heavy) {
-                        gfx_circle(f, sx - 20, sy - 14, fl ? 3 : 4, COL_YELLOW);
-                    }
+                    gfx_circle(f, sx - 24, sy - 24, fl ? 5 : 4, fl ? COL_ORANGE : COL_RED);
+                    gfx_circle(f, sx + 24, sy + 24, fl ? 4 : 5, fl ? COL_RED : COL_ORANGE);
+                    if (heavy) gfx_circle(f, sx, sy, fl ? 4 : 5, COL_YELLOW);
                 }
             }
             break;
         }
         case STRUCT_TOWER: {
-            int tw = (s->size == 0) ? 24 : 32;
-            int td = (s->size == 0) ? 14 : 18;
-            int th = (s->size == 0) ? 18 : 22;
             int damaged = (s->hp < s->max_hp);
             int heavy = (s->hp * 2 <= s->max_hp);
-            int rx = sx - tw / 2 + 4;
-            int ry = sy - td / 2 - th / 2;
-            /* Tall 2.5D SimCity-style residential tower */
-            gfx_box_3d(f, rx, ry, tw, td, th,
-                       damaged ? COL_GRAY_MID : COL_GRAY_LIGHT,
-                       damaged ? COL_GRAY_DARK : COL_WHITE,
-                       damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
-            /* Perspective-aligned windows on both front and left walls */
-            gfx_windows_3d(f, rx, ry, tw, td, th, s->size == 0 ? 4 : 5, s->size == 0 ? 4 : 5,
-                           damaged ? COL_BLACK : COL_CYAN,
-                           damaged ? COL_BLACK : COL_SHALLOW_SEA);
-            /* Rooftop parapet & pool */
-            gfx_rect_outline(f, rx + 2, ry + 2, tw - 4, td - 4, COL_GRAY_MID);
-            gfx_rect(f, rx + 5, ry + 4, tw - 10, td - 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
+            if (s->size == 0) {
+                /* Variant 0: Classic white concrete apartment tower with rooftop pool */
+                int tw = 24, td = 14, th = 18;
+                int rx = sx - tw / 2 + 4, ry = sy - td / 2 - th / 2;
+                gfx_box_3d(f, rx, ry, tw, td, th,
+                           damaged ? COL_GRAY_MID : COL_GRAY_LIGHT,
+                           damaged ? COL_GRAY_DARK : COL_WHITE,
+                           damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+                gfx_windows_3d(f, rx, ry, tw, td, th, 4, 4,
+                               damaged ? COL_BLACK : COL_CYAN,
+                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
+                gfx_rect_outline(f, rx + 2, ry + 2, tw - 4, td - 4, COL_GRAY_MID);
+                gfx_rect(f, rx + 5, ry + 4, tw - 10, td - 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
+            } else if (s->size == 1) {
+                /* Variant 1: Terracotta / brick condo high-rise with warm windows & penthouse */
+                int tw = 28, td = 16, th = 20;
+                int rx = sx - tw / 2 + 4, ry = sy - td / 2 - th / 2;
+                gfx_box_3d(f, rx, ry, tw, td, th,
+                           damaged ? COL_BROWN_DARK : COL_SAND_LIGHT,
+                           damaged ? COL_GRAY_DARK : COL_BROWN,
+                           damaged ? COL_BLACK : COL_BROWN_DARK, COL_BLACK);
+                gfx_windows_3d(f, rx, ry, tw, td, th, 4, 5,
+                               damaged ? COL_BLACK : COL_YELLOW,
+                               damaged ? COL_BLACK : COL_ORANGE);
+                gfx_box_3d(f, rx + 8, ry + 3, 12, 8, 5,
+                           damaged ? COL_GRAY_DARK : COL_RED_DARK,
+                           damaged ? COL_ROCK_DARK : COL_WHITE,
+                           damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+            } else if (s->size == 2) {
+                /* Variant 2: Twin-tier stepped skyscraper (slate podium + upper glass tower) */
+                int rx1 = sx - 12, ry1 = sy - 14;
+                gfx_box_3d(f, rx1, ry1, 32, 18, 12,
+                           damaged ? COL_GRAY_DARK : COL_GRAY_MID,
+                           damaged ? COL_ROCK_DARK : COL_GRAY_DARK,
+                           damaged ? COL_BLACK : COL_ROCK_DARK, COL_BLACK);
+                gfx_windows_3d(f, rx1, ry1, 32, 18, 12, 5, 3,
+                               damaged ? COL_BLACK : COL_CYAN,
+                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
+                int rx2 = rx1 + 7, ry2 = ry1 - 12;
+                gfx_box_3d(f, rx2, ry2, 20, 12, 16,
+                           damaged ? COL_GRAY_MID : COL_WHITE,
+                           damaged ? COL_GRAY_DARK : web_rgb(1, 3, 4),
+                           damaged ? COL_BLACK : web_rgb(0, 2, 3), COL_BLACK);
+                gfx_windows_3d(f, rx2, ry2, 20, 12, 16, 4, 4,
+                               damaged ? COL_BLACK : COL_CYAN,
+                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
+                gfx_rect_outline(f, rx2 + 5, ry2 + 3, 10, 6, COL_YELLOW);
+            } else {
+                /* Variant 3: Tall teal glass resort high-rise with white crown */
+                int tw = 24, td = 16, th = 25;
+                int rx = sx - tw / 2 + 5, ry = sy - td / 2 - th / 2;
+                gfx_box_3d(f, rx, ry, tw, td, th,
+                           damaged ? COL_GRAY_MID : COL_WHITE,
+                           damaged ? COL_GRAY_DARK : web_rgb(0, 3, 4),
+                           damaged ? COL_BLACK : web_rgb(0, 2, 3), COL_BLACK);
+                gfx_windows_3d(f, rx, ry, tw, td, th, 4, 6,
+                               damaged ? COL_BLACK : COL_CYAN,
+                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
+                gfx_box_3d(f, rx + 4, ry + 3, 6, 5, 3, COL_GRAY_LIGHT, COL_GRAY_MID, COL_GRAY_DARK, COL_BLACK);
+                gfx_box_3d(f, rx + 14, ry + 3, 6, 5, 3, COL_GRAY_LIGHT, COL_GRAY_MID, COL_GRAY_DARK, COL_BLACK);
+            }
             if (damaged) {
-                gfx_rect(f, rx + 4, ry + 4, 8, 6, COL_BLACK);
                 int fl = ((int)(time_sec * 10.0f)) & 1;
                 gfx_circle(f, sx - 2, sy - 4, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
                 if (heavy) {
@@ -1094,8 +1243,8 @@ static void draw_gallery_screen(const Game *g, Framebuffer *f) {
         {STRUCT_RADAR, 0, "RADAR / SAM"},
         {STRUCT_OIL_FIELD, 2, "OIL TANKS (1-3)"},
         {STRUCT_BUNGALOW, 0, "COASTAL VILLAGE"},
-        {STRUCT_BUNGALOW, 2, "RESORT VILLAGE"},
-        {STRUCT_TOWER, 1, "RESORT TOWER"}
+        {STRUCT_BUNGALOW, 2, "LARGE VILLAGE"},
+        {STRUCT_TOWER, 2, "STEPPED TOWER"}
     };
     for (int i = 0; i < 7; i++) {
         int x = 16 + i * 142;
