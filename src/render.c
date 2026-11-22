@@ -52,6 +52,103 @@ static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int 
              g->carrier.hp > g->carrier.max_hp / 3 ? COL_GREEN_BRIGHT : COL_RED);
 }
 
+static void gfx_quad_i(Framebuffer *f, int x0, int y0, int x1, int y1,
+                       int x2, int y2, int x3, int y3, uint8_t col) {
+    gfx_triangle(f, x0, y0, x1, y1, x2, y2, col);
+    gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
+}
+
+/* SimCity-style 2.5D oblique box: shows roof + front (south) + left (west) faces */
+static int oblique_lw(int h) {
+    int lw = (h * 2 + 1) / 3;
+    return (lw < 3) ? 3 : lw;
+}
+
+static void gfx_box_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
+                       uint8_t roof_col, uint8_t front_col, uint8_t left_col, uint8_t edge_col) {
+    int lw = oblique_lw(h);
+    /* Ground drop shadow on bottom-left */
+    gfx_quad_i(f, rx - lw, ry + h + 2, rx - lw, ry + rd + h,
+               rx - lw - 3, ry + rd + h + 2, rx - lw - 3, ry + h + 4, COL_BLACK);
+    gfx_quad_i(f, rx - lw, ry + rd + h, rx + rw - lw, ry + rd + h,
+               rx + rw - lw - 3, ry + rd + h + 2, rx - lw - 3, ry + rd + h + 2, COL_BLACK);
+    /* Left (west) wall */
+    gfx_quad_i(f, rx, ry, rx, ry + rd, rx - lw, ry + rd + h, rx - lw, ry + h, left_col);
+    /* Front (south) wall */
+    gfx_quad_i(f, rx, ry + rd, rx + rw, ry + rd, rx + rw - lw, ry + rd + h, rx - lw, ry + rd + h, front_col);
+    /* Roof + crisp top-right bevel */
+    gfx_rect(f, rx, ry, rw, rd, roof_col);
+    gfx_rect_outline(f, rx, ry, rw, rd, edge_col);
+    /* Crisp outer silhouette & corner edges */
+    gfx_line(f, rx, ry, rx - lw, ry + h, edge_col);
+    gfx_line(f, rx - lw, ry + h, rx - lw, ry + rd + h, edge_col);
+    gfx_line(f, rx, ry + rd, rx - lw, ry + rd + h, edge_col);
+    gfx_line(f, rx - lw, ry + rd + h, rx + rw - lw, ry + rd + h, edge_col);
+    gfx_line(f, rx + rw, ry + rd, rx + rw - lw, ry + rd + h, edge_col);
+}
+
+/* 2.5D oblique cylinder for silos, oil tanks, cooling towers, and bunkers */
+static void gfx_cyl_3d(Framebuffer *f, int rx, int ry, int r, int h,
+                       uint8_t top_col, uint8_t side_col, uint8_t edge_col) {
+    int lw = oblique_lw(h);
+    /* Ground shadow */
+    gfx_circle(f, rx - lw - 2, ry + h + 2, r, COL_BLACK);
+    /* Extruded cylinder body */
+    int steps = (h > lw) ? h : lw;
+    if (steps < 1) steps = 1;
+    for (int i = steps; i >= 1; i--) {
+        int cx = rx - (lw * i) / steps;
+        int cy = ry + (h * i) / steps;
+        gfx_circle(f, cx, cy, r, (i == steps) ? edge_col : side_col);
+    }
+    gfx_circle(f, rx, ry, r, top_col);
+    gfx_circle_outline(f, rx, ry, r, edge_col);
+}
+
+/* Perspective-aligned windows on both front and left walls of a 2.5D box */
+static void gfx_windows_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
+                           int cols, int rows, uint8_t front_win, uint8_t left_win) {
+    int lw = oblique_lw(h);
+    int win_h = (h / (rows + 1) >= 4) ? 2 : 1;
+    int win_w = (rw - 6) / (cols * 2);
+    if (win_w < 2) win_w = 2;
+    for (int r = 0; r < rows; r++) {
+        int wy = 2 + (r * (h - 3)) / rows;
+        int shift = (wy * lw) / h;
+        /* Front wall windows */
+        for (int c = 0; c < cols; c++) {
+            int wx = rx + 3 + (c * (rw - 5)) / cols - shift;
+            gfx_rect(f, wx, ry + rd + wy, win_w, win_h, front_win);
+        }
+        /* Left wall slanted window band */
+        if (lw >= 5) {
+            int lx = rx - shift - 1;
+            int ly = ry + wy + 2;
+            int l_len = (rd > 6) ? (rd - 4) : (rd - 2);
+            if (l_len > 1) {
+                gfx_line(f, lx, ly, lx, ly + l_len, left_win);
+            }
+        }
+    }
+}
+
+/* 2.5D gabled house/cottage for residential bungalows */
+static void gfx_house_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
+                         uint8_t roof_col, uint8_t ridge_col, uint8_t front_col, uint8_t left_col,
+                         uint8_t door_col, uint8_t win_col) {
+    gfx_box_3d(f, rx, ry, rw, rd, h, roof_col, front_col, left_col, COL_BROWN_DARK);
+    /* Pitched roof ridge + sunlit front slope */
+    int mid_y = ry + rd / 2;
+    gfx_rect(f, rx + 1, mid_y, rw - 2, rd / 2, ridge_col);
+    gfx_line(f, rx, mid_y, rx + rw - 1, mid_y, COL_BROWN_DARK);
+    /* Front door & window aligned to front wall */
+    int lw = oblique_lw(h);
+    int fx = rx - lw / 2;
+    int fy = ry + rd + h / 2;
+    gfx_rect(f, fx + 3, fy - 1, 3, h - h / 2, door_col);
+    gfx_rect(f, fx + rw - 6, fy, 3, 2, win_col);
+}
+
 static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int cam_y, float time_sec) {
     int sx = (int)(s->x - cam_x);
     int sy = (int)(s->y - cam_y);
@@ -63,55 +160,58 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             int hh = (s->size == 0) ? 16 : (s->size == 1 ? 24 : 40);
 
             if (s->size < 2) {
-                /* Small (48x32 = 6 tiles) and Medium (64x48 = 12 tiles) factories */
-                gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
-                gfx_rect(f, sx - hw + 2, sy - hh + 2, hw * 2 - 4, hh * 2 - 4, COL_GRAY_MID);
-                int bays = s->size + 3;
-                int bay_w = (hw * 2 - 8) / bays;
-                for (int b = 0; b < bays; b++) {
-                    int rx = -hw + 4 + b * bay_w;
-                    gfx_rect(f, sx + rx, sy - hh + 4, bay_w - 2, hh * 2 - 10, COL_GRAY_DARK);
-                    gfx_line(f, sx + rx, sy - hh + 4, sx + rx + bay_w - 2, sy - hh + 4, COL_GRAY_LIGHT);
+                /* Small (48x32) and Medium (64x48) 2.5D factories */
+                int rx = sx - hw + 2, ry = sy - hh - 4, rw = hw * 2 - 4, rd = hh * 2 - 4;
+                gfx_box_3d(f, rx, ry, rw, rd, 9, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+                /* Front bay doors aligned to oblique base */
+                for (int dx = 8; dx < rw - 10; dx += 14) {
+                    gfx_rect(f, rx + dx - 5, ry + rd + 3, 8, 6, COL_BLACK);
                 }
-                gfx_rect(f, sx - hw + 5, sy - hh - 7, 6, 10, COL_RED_DARK);
-                gfx_rect(f, sx + hw - 11, sy - hh - 7, 6, 10, COL_RED_DARK);
+                int bays = s->size + 3;
+                int bay_w = (rw - 8) / bays;
+                for (int b = 0; b < bays; b++) {
+                    int bx = rx + 4 + b * bay_w;
+                    gfx_rect(f, bx, ry + 4, bay_w - 2, rd - 8, COL_GRAY_DARK);
+                    gfx_line(f, bx, ry + 4, bx + bay_w - 2, ry + 4, COL_GRAY_LIGHT);
+                }
+                /* 3D Cylindrical Smokestacks */
+                gfx_cyl_3d(f, rx + 8, ry - 6, 4, 9, COL_GRAY_LIGHT, COL_RED_DARK, COL_BLACK);
+                gfx_cyl_3d(f, rx + rw - 8, ry - 6, 4, 9, COL_GRAY_LIGHT, COL_RED_DARK, COL_BLACK);
                 if (s->size == 1) {
-                    /* Medium side loading bay */
-                    gfx_rect(f, sx - hw - 6, sy - 8, 8, 16, COL_ROCK_DARK);
+                    gfx_box_3d(f, rx - 8, ry + rd / 2 - 6, 8, 14, 6, COL_GRAY_MID, COL_ROCK_DARK, COL_BROWN_DARK, COL_BLACK);
                 }
             } else {
-                /* Large multi-building industrial complex (112x80 = 35 tiles) */
+                /* Large multi-building 2.5D industrial complex (112x80) */
                 gfx_rect(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_ROCK_DARK);
                 gfx_rect_outline(f, sx - hw, sy - hh, hw * 2, hh * 2, COL_BROWN_DARK);
 
-                /* Main manufacturing hall (top-left) */
-                gfx_rect(f, sx - 50, sy - 34, 66, 42, COL_BROWN_DARK);
-                gfx_rect(f, sx - 48, sy - 32, 62, 38, COL_GRAY_MID);
+                /* Main manufacturing hall (top-left, tall 2.5D extrusion) */
+                int mx = sx - 46, my = sy - 38, mw = 62, md = 36;
+                gfx_box_3d(f, mx, my, mw, md, 12, COL_GRAY_MID, COL_GRAY_DARK, COL_BROWN_DARK, COL_BLACK);
                 for (int b = 0; b < 4; b++) {
-                    int rx = sx - 45 + b * 14;
-                    gfx_rect(f, rx, sy - 29, 12, 31, COL_GRAY_DARK);
-                    gfx_line(f, rx, sy - 29, rx + 12, sy - 29, COL_GRAY_LIGHT);
+                    int rx = mx + 4 + b * 14;
+                    gfx_rect(f, rx, my + 4, 12, md - 8, COL_GRAY_DARK);
+                    gfx_line(f, rx, my + 4, rx + 12, my + 4, COL_GRAY_LIGHT);
                 }
-                /* 3 tall smokestacks on main hall */
-                gfx_rect(f, sx - 44, sy - 44, 7, 13, COL_RED_DARK);
-                gfx_rect(f, sx - 22, sy - 44, 7, 13, COL_RED_DARK);
-                gfx_rect(f, sx,      sy - 44, 7, 13, COL_RED_DARK);
+                for (int dx = 10; dx < mw - 10; dx += 14) {
+                    gfx_rect(f, mx + dx - 7, my + md + 4, 9, 8, COL_BLACK);
+                }
+                /* 3 tall 3D cylindrical smokestacks on main hall */
+                gfx_cyl_3d(f, mx + 10, my - 8, 4, 12, COL_GRAY_LIGHT, COL_RED_DARK, COL_BLACK);
+                gfx_cyl_3d(f, mx + 30, my - 8, 4, 12, COL_GRAY_LIGHT, COL_RED_DARK, COL_BLACK);
+                gfx_cyl_3d(f, mx + 50, my - 8, 4, 12, COL_GRAY_LIGHT, COL_RED_DARK, COL_BLACK);
 
-                /* Secondary assembly wing (bottom-right) */
-                gfx_rect(f, sx + 2, sy + 2, 48, 32, COL_BROWN_DARK);
-                gfx_rect(f, sx + 4, sy + 4, 44, 28, COL_GRAY_DARK);
-                gfx_rect_outline(f, sx + 4, sy + 4, 44, 28, COL_GRAY_LIGHT);
-                gfx_rect(f, sx + 10, sy + 10, 32, 8, COL_GRAY_MID);
+                /* Secondary assembly wing (bottom-right, 2.5D) */
+                gfx_box_3d(f, sx + 6, sy + 2, 44, 24, 9, COL_GRAY_MID, COL_GRAY_DARK, COL_BROWN_DARK, COL_BLACK);
+                gfx_rect(f, sx + 12, sy + 7, 32, 8, COL_GRAY_DARK);
 
                 /* Overhead pipework / conveyor connecting halls */
-                gfx_rect(f, sx + 16, sy - 16, 26, 6, COL_ORANGE);
-                gfx_rect(f, sx + 22, sy - 16, 6, 20, COL_ORANGE);
+                gfx_rect(f, sx + 16, sy - 18, 26, 6, COL_ORANGE);
+                gfx_rect(f, sx + 22, sy - 18, 6, 20, COL_ORANGE);
 
-                /* Twin storage silos (bottom-left) */
-                gfx_circle(f, sx - 36, sy + 22, 8, COL_GRAY_LIGHT);
-                gfx_circle_outline(f, sx - 36, sy + 22, 8, COL_GRAY_DARK);
-                gfx_circle(f, sx - 16, sy + 22, 8, COL_GRAY_LIGHT);
-                gfx_circle_outline(f, sx - 16, sy + 22, 8, COL_GRAY_DARK);
+                /* Twin 3D storage silos (bottom-left) */
+                gfx_cyl_3d(f, sx - 34, sy + 18, 8, 9, COL_GRAY_LIGHT, COL_GRAY_DARK, COL_BLACK);
+                gfx_cyl_3d(f, sx - 14, sy + 18, 8, 9, COL_GRAY_LIGHT, COL_GRAY_DARK, COL_BLACK);
             }
 
             /* Level stars / status */
@@ -149,19 +249,20 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             break;
         }
         case STRUCT_SHIPYARD: {
-            /* Drydock / slipway */
+            /* 2.5D Drydock / slipway */
             gfx_rect(f, sx - 24, sy - 22, 48, 44, COL_GRAY_DARK);
-            gfx_rect(f, sx - 20, sy - 18, 40, 36, COL_SHALLOW_SEA);
-            gfx_rect(f, sx - 24, sy - 22, 10, 44, COL_GRAY_MID);
-            gfx_rect(f, sx + 14, sy - 22, 10, 44, COL_GRAY_MID);
-            /* Cranes */
-            gfx_rect(f, sx - 22, sy - 8, 12, 4, COL_YELLOW);
-            gfx_rect(f, sx + 10, sy + 4, 12, 4, COL_YELLOW);
+            gfx_rect(f, sx - 16, sy - 18, 32, 36, COL_SHALLOW_SEA);
+            /* Extruded 2.5D concrete piers */
+            gfx_box_3d(f, sx - 24, sy - 24, 10, 44, 6, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+            gfx_box_3d(f, sx + 14, sy - 24, 10, 44, 6, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+            /* 2.5D Gantry cranes */
+            gfx_box_3d(f, sx - 22, sy - 10, 14, 4, 8, COL_YELLOW, COL_ORANGE, COL_BROWN, COL_BLACK);
+            gfx_box_3d(f, sx + 8, sy + 2, 14, 4, 8, COL_YELLOW, COL_ORANGE, COL_BROWN, COL_BLACK);
             if (s->building_carrier && !s->carrier_launched) {
-                /* Hull under construction */
+                /* 2.5D Hull under construction */
                 int hull_h = (int)(6.0f + s->carrier_progress * 28.0f);
-                gfx_rect(f, sx - 8, sy - hull_h / 2, 16, hull_h, COL_RED_DARK);
-                gfx_rect_outline(f, sx - 8, sy - hull_h / 2, 16, hull_h, COL_ORANGE);
+                gfx_box_3d(f, sx - 7, sy - hull_h / 2 - 2, 14, hull_h, 5,
+                           COL_RED_DARK, COL_BROWN_DARK, COL_BLACK, COL_ORANGE);
                 int pw = (int)(s->carrier_progress * 40.0f);
                 gfx_rect(f, sx - 20, sy + 24, 40, 4, COL_BLACK);
                 gfx_rect(f, sx - 20, sy + 24, pw, 4, COL_RED);
@@ -169,30 +270,30 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             break;
         }
         case STRUCT_AA: {
-            /* Concrete bunker + rotating dual barrel */
-            gfx_circle(f, sx, sy, 12, COL_GRAY_DARK);
-            gfx_circle_outline(f, sx, sy, 12, COL_GRAY_LIGHT);
-            gfx_circle(f, sx, sy, 6, COL_ROCK_DARK);
+            /* 2.5D Concrete bunker + rotating dual barrel */
+            gfx_cyl_3d(f, sx + 2, sy - 3, 12, 6, COL_GRAY_MID, COL_GRAY_DARK, COL_BLACK);
+            gfx_circle_outline(f, sx + 2, sy - 3, 11, COL_GRAY_LIGHT);
+            gfx_cyl_3d(f, sx + 3, sy - 5, 6, 3, COL_ROCK_DARK, COL_BLACK, COL_GRAY_DARK);
             float ang = time_sec * 1.4f + s->x * 0.01f;
             int bx = (int)(cosf(ang) * 13.0f);
             int by = (int)(sinf(ang) * 13.0f);
-            gfx_line(f, sx, sy, sx + bx, sy + by, COL_YELLOW);
+            gfx_line(f, sx + 3, sy - 5, sx + 3 + bx, sy - 5 + by, COL_YELLOW);
             break;
         }
         case STRUCT_BARRACKS: {
-            /* Military tents / huts */
-            gfx_rect(f, sx - 16, sy - 12, 14, 10, COL_GRASS_DARK);
-            gfx_rect(f, sx + 2,  sy - 12, 14, 10, COL_GRASS_DARK);
-            gfx_rect(f, sx - 16, sy + 2,  14, 10, COL_BROWN);
-            gfx_rect(f, sx + 2,  sy + 2,  14, 10, COL_BROWN);
-            gfx_rect_outline(f, sx - 18, sy - 14, 36, 28, COL_ROCK_DARK);
+            /* 2.5D military huts */
+            gfx_rect_outline(f, sx - 20, sy - 14, 40, 32, COL_ROCK_DARK);
+            gfx_box_3d(f, sx - 15, sy - 14, 14, 9, 5, COL_GRASS_MID, COL_GRASS_DARK, COL_BROWN_DARK, COL_BLACK);
+            gfx_box_3d(f, sx + 3,  sy - 14, 14, 9, 5, COL_GRASS_MID, COL_GRASS_DARK, COL_BROWN_DARK, COL_BLACK);
+            gfx_box_3d(f, sx - 15, sy + 1,  14, 9, 5, COL_BROWN, COL_BROWN_DARK, COL_ROCK_DARK, COL_BLACK);
+            gfx_box_3d(f, sx + 3,  sy + 1,  14, 9, 5, COL_BROWN, COL_BROWN_DARK, COL_ROCK_DARK, COL_BLACK);
             break;
         }
         case STRUCT_RADAR: {
-            gfx_rect(f, sx - 10, sy - 10, 20, 20, COL_GRAY_MID);
-            gfx_circle_outline(f, sx, sy, 9, COL_CYAN);
+            gfx_box_3d(f, sx - 9, sy - 13, 20, 18, 7, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
+            gfx_circle_outline(f, sx + 1, sy - 4, 8, COL_CYAN);
             float ang = time_sec * 3.2f;
-            gfx_line(f, sx, sy, sx + (int)(cosf(ang) * 9.0f), sy + (int)(sinf(ang) * 9.0f), COL_GREEN_BRIGHT);
+            gfx_line(f, sx + 1, sy - 4, sx + 1 + (int)(cosf(ang) * 8.0f), sy - 4 + (int)(sinf(ang) * 8.0f), COL_GREEN_BRIGHT);
             break;
         }
         case STRUCT_OIL_FIELD: {
@@ -219,12 +320,10 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             }
 
             for (int t = 0; t < count; t++) {
-                gfx_circle(f, tx[t] + 3, ty[t] + 3, 11, COL_BLACK);
-                gfx_circle(f, tx[t], ty[t], 11, COL_GRAY_LIGHT);
-                gfx_circle_outline(f, tx[t], ty[t], 11, COL_GRAY_DARK);
-                gfx_circle_outline(f, tx[t], ty[t], 8, COL_GRAY_MID);
-                gfx_circle(f, tx[t], ty[t], 3, COL_RED_DARK);
-                gfx_pixel(f, tx[t], ty[t], COL_ORANGE);
+                gfx_cyl_3d(f, tx[t] + 2, ty[t] - 3, 11, 8, COL_GRAY_LIGHT, COL_GRAY_DARK, COL_BLACK);
+                gfx_circle_outline(f, tx[t] + 2, ty[t] - 3, 8, COL_GRAY_MID);
+                gfx_circle(f, tx[t] + 2, ty[t] - 3, 3, COL_RED_DARK);
+                gfx_pixel(f, tx[t] + 2, ty[t] - 3, COL_ORANGE);
             }
             break;
         }
@@ -232,128 +331,117 @@ static void draw_structure(const Structure *s, Framebuffer *f, int cam_x, int ca
             int damaged = (s->hp < s->max_hp);
             int heavy = (s->hp * 2 <= s->max_hp);
             if (s->size < 2) {
-                /* Natural coastal cottages sitting directly on the beach/grass (no boxy slab) */
-                static const int cx[3] = {-15, 14, -1};
+                /* Natural 2.5D coastal cottages with pitched roofs, front doors & side walls */
+                static const int cx[3] = {-14, 15, 0};
                 static const int cy[3] = {-10, -6, 12};
                 for (int i = 0; i < 3; i++) {
                     int bx = sx + cx[i];
                     int by = sy + cy[i];
-                    /* Soft drop shadow */
-                    gfx_rect(f, bx - 6, by - 3, 16, 11, COL_BLACK);
-                    /* Whitewashed cottage walls */
-                    gfx_rect(f, bx - 8, by - 5, 16, 10, damaged ? COL_GRAY_MID : COL_WHITE);
-                    /* Two-tone pitched terracotta roof (sunlit top, shaded bottom) */
-                    uint8_t top_col = damaged ? COL_BROWN_DARK : ((i == 1) ? COL_SAND_LIGHT : COL_ORANGE);
-                    uint8_t bot_col = damaged ? COL_BLACK : ((i == 1) ? COL_BROWN : COL_RED_DARK);
-                    gfx_rect(f, bx - 8, by - 6, 16, 4, top_col);
-                    gfx_rect(f, bx - 8, by - 2, 16, 4, bot_col);
-                    gfx_line(f, bx - 8, by - 2, bx + 7, by - 2, COL_GRAY_LIGHT);
+                    uint8_t roof = damaged ? COL_BROWN_DARK : ((i == 1) ? COL_SAND_LIGHT : COL_RED_DARK);
+                    uint8_t ridge = damaged ? COL_ROCK_DARK : ((i == 1) ? COL_YELLOW : COL_ORANGE);
+                    uint8_t front = damaged ? COL_GRAY_DARK : COL_WHITE;
+                    uint8_t left = damaged ? COL_BLACK : COL_GRAY_MID;
+                    gfx_house_3d(f, bx - 7, by - 7, 15, 8, 6,
+                                 roof, ridge, front, left,
+                                 COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
                     if (damaged && (heavy || i == 0)) {
                         int fl = ((int)(time_sec * 12.0f) + i) & 1;
-                        gfx_rect(f, bx - 3, by - 4, 5, 4, COL_BLACK);
-                        gfx_circle(f, bx, by - 2, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
+                        gfx_rect(f, bx - 3, by - 5, 5, 4, COL_BLACK);
+                        gfx_circle(f, bx, by - 3, fl ? 3 : 2, fl ? COL_ORANGE : COL_RED);
                     }
                 }
             } else {
-                /* Upscale big-island resort village on natural terrain: 2 villas, pool & tall glass tower */
-                /* Small turquoise resort pool with white coping */
+                /* Upscale big-island 2.5D resort village: pool, 2 gabled villas & tall 2.5D glass tower */
                 gfx_rect(f, sx - 28, sy + 6, 20, 12, COL_WHITE);
                 gfx_rect(f, sx - 26, sy + 8, 16, 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
 
-                /* 2 neat beach villas */
-                static const int vx[2] = {-22, 22};
+                static const int vx[2] = {-20, 22};
                 static const int vy[2] = {-14, 14};
                 for (int i = 0; i < 2; i++) {
                     int bx = sx + vx[i];
                     int by = sy + vy[i];
-                    gfx_rect(f, bx - 6, by - 3, 16, 11, COL_BLACK);
-                    gfx_rect(f, bx - 8, by - 5, 16, 10, damaged ? COL_GRAY_MID : COL_WHITE);
-                    gfx_rect(f, bx - 8, by - 6, 16, 4, damaged ? COL_BROWN_DARK : COL_ORANGE);
-                    gfx_rect(f, bx - 8, by - 2, 16, 4, damaged ? COL_BLACK : COL_RED_DARK);
-                    gfx_line(f, bx - 8, by - 2, bx + 7, by - 2, COL_GRAY_LIGHT);
+                    gfx_house_3d(f, bx - 7, by - 7, 15, 8, 6,
+                                 damaged ? COL_BROWN_DARK : COL_RED_DARK,
+                                 damaged ? COL_ROCK_DARK : COL_ORANGE,
+                                 damaged ? COL_GRAY_DARK : COL_WHITE,
+                                 damaged ? COL_BLACK : COL_GRAY_MID,
+                                 COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
                 }
 
-                /* Sleek tall glass tower */
-                int tx = sx + 6;
-                int ty = sy - 6;
-                gfx_rect(f, tx - 6, ty - 4, 24, 22, COL_BLACK); /* Tall shadow */
-                gfx_rect(f, tx - 12, ty - 10, 24, 20, damaged ? COL_GRAY_DARK : web_rgb(1, 2, 3));
-                gfx_rect_outline(f, tx - 12, ty - 10, 24, 20, COL_GRAY_LIGHT);
-                for (int ry = -6; ry <= 6; ry += 4) {
-                    gfx_rect(f, tx - 10, ty + ry, 20, 2, damaged ? COL_BLACK : web_rgb(2, 4, 5));
-                }
-                gfx_rect(f, tx - 7, ty - 5, 14, 10, damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT);
+                /* Tall 2.5D reflective glass tower (perspective-aligned front + left curtain walls) */
+                int tx = sx, ty = sy - 20;
+                gfx_box_3d(f, tx, ty, 22, 14, 18,
+                           damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT,
+                           damaged ? COL_GRAY_DARK : web_rgb(1, 3, 4),
+                           damaged ? COL_BLACK : web_rgb(0, 2, 3), COL_BLACK);
+                gfx_windows_3d(f, tx, ty, 22, 14, 18, 4, 4,
+                               damaged ? COL_BLACK : COL_CYAN,
+                               damaged ? COL_BLACK : COL_SHALLOW_SEA);
+                gfx_rect(f, tx + 4, ty + 3, 14, 8, damaged ? COL_GRAY_MID : COL_WHITE);
 
                 if (damaged) {
                     int fl = ((int)(time_sec * 11.0f)) & 1;
-                    gfx_circle(f, tx, ty, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
+                    gfx_circle(f, tx + 8, ty + 6, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
                     if (heavy) {
-                        gfx_circle(f, sx - 22, sy - 14, fl ? 3 : 4, COL_YELLOW);
+                        gfx_circle(f, sx - 20, sy - 14, fl ? 3 : 4, COL_YELLOW);
                     }
                 }
             }
             break;
         }
         case STRUCT_TOWER: {
-            int tw = (s->size == 0) ? 28 : 36;
-            int th = (s->size == 0) ? 22 : 28;
+            int tw = (s->size == 0) ? 24 : 32;
+            int td = (s->size == 0) ? 14 : 18;
+            int th = (s->size == 0) ? 18 : 22;
             int damaged = (s->hp < s->max_hp);
             int heavy = (s->hp * 2 <= s->max_hp);
-            /* Tall cast shadow */
-            gfx_rect(f, sx - tw / 2 + 8, sy - th / 2 + 10, tw, th, COL_BLACK);
-            /* Tower facade & balconies */
-            gfx_rect(f, sx - tw / 2, sy - th / 2, tw, th, damaged ? COL_GRAY_MID : COL_WHITE);
-            gfx_rect_outline(f, sx - tw / 2, sy - th / 2, tw, th, COL_GRAY_DARK);
-            for (int ry = -th / 2 + 4; ry < th / 2 - 2; ry += 6) {
-                gfx_rect(f, sx - tw / 2 + 3, sy + ry, tw - 6, 2,
-                         (damaged && (ry & 4)) ? COL_BLACK : COL_CYAN);
-            }
-            /* Rooftop terrace / pool */
-            gfx_rect(f, sx - tw / 2 + 4, sy - th / 2 + 3, tw - 8, th - 6,
-                     damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT);
-            gfx_rect(f, sx - 6, sy - 4, 12, 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
-            gfx_rect(f, sx + 4, sy - 4, 4, 4, COL_GRAY_DARK);
+            int rx = sx - tw / 2 + 4;
+            int ry = sy - td / 2 - th / 2;
+            /* Tall 2.5D SimCity-style residential tower */
+            gfx_box_3d(f, rx, ry, tw, td, th,
+                       damaged ? COL_GRAY_MID : COL_GRAY_LIGHT,
+                       damaged ? COL_GRAY_DARK : COL_WHITE,
+                       damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+            /* Perspective-aligned windows on both front and left walls */
+            gfx_windows_3d(f, rx, ry, tw, td, th, s->size == 0 ? 4 : 5, s->size == 0 ? 4 : 5,
+                           damaged ? COL_BLACK : COL_CYAN,
+                           damaged ? COL_BLACK : COL_SHALLOW_SEA);
+            /* Rooftop parapet & pool */
+            gfx_rect_outline(f, rx + 2, ry + 2, tw - 4, td - 4, COL_GRAY_MID);
+            gfx_rect(f, rx + 5, ry + 4, tw - 10, td - 8, damaged ? COL_ROCK_DARK : COL_SHALLOW_SEA);
             if (damaged) {
-                /* Scorch marks, cracks, fire & smoke plumes */
-                gfx_rect(f, sx - tw / 4, sy - th / 4, 8, 6, COL_BLACK);
-                gfx_line(f, sx - tw / 2 + 2, sy - 2, sx + 4, sy + 6, COL_BLACK);
+                gfx_rect(f, rx + 4, ry + 4, 8, 6, COL_BLACK);
                 int fl = ((int)(time_sec * 10.0f)) & 1;
-                gfx_circle(f, sx - 4, sy - 2, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
-                gfx_circle(f, sx - 2 + (int)(sinf(time_sec * 3.5f) * 3.0f), sy - 9, 4, COL_GRAY_DARK);
+                gfx_circle(f, sx - 2, sy - 4, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
                 if (heavy) {
-                    gfx_circle(f, sx + 6, sy + 3, fl ? 3 : 4, COL_YELLOW);
-                    gfx_circle(f, sx + 8, sy - 6, 5, COL_GRAY_MID);
+                    gfx_circle(f, sx + 5, sy + 2, fl ? 3 : 4, COL_YELLOW);
                 }
             }
             break;
         }
         case STRUCT_NUCLEAR: {
-            /* SimCity-style nuclear power plant (64x64 compound) */
+            /* SimCity-style 2.5D nuclear power plant (64x64 compound) */
             gfx_rect(f, sx - 32, sy - 32, 64, 64, COL_ROCK_DARK);
             gfx_rect_outline(f, sx - 32, sy - 32, 64, 64, COL_YELLOW);
             gfx_rect(f, sx - 28, sy - 28, 56, 56, COL_GRAY_MID);
 
-            /* Turbine hall (bottom-left) */
-            gfx_rect(f, sx - 26, sy + 4, 26, 20, COL_GRAY_DARK);
-            gfx_rect_outline(f, sx - 26, sy + 4, 26, 20, COL_GRAY_LIGHT);
+            /* 2.5D Turbine hall (bottom-left) */
+            gfx_box_3d(f, sx - 24, sy + 2, 24, 14, 9, COL_GRAY_MID, COL_GRAY_DARK, COL_ROCK_DARK, COL_BLACK);
 
-            /* Domed containment reactor (top-left) */
-            gfx_circle(f, sx - 13, sy - 13, 12, COL_GRAY_LIGHT);
-            gfx_circle_outline(f, sx - 13, sy - 13, 12, COL_GRAY_DARK);
-            gfx_circle(f, sx - 13, sy - 13, 5, COL_CYAN);
-            gfx_circle(f, sx - 13, sy - 13, 2, COL_YELLOW);
+            /* 2.5D Domed containment reactor (top-left) */
+            gfx_cyl_3d(f, sx - 12, sy - 16, 12, 9, COL_GRAY_LIGHT, COL_GRAY_DARK, COL_BLACK);
+            gfx_circle(f, sx - 12, sy - 16, 5, COL_CYAN);
+            gfx_circle(f, sx - 12, sy - 16, 2, COL_YELLOW);
 
-            /* Two iconic cooling towers (right side) */
-            int cty[2] = {sy - 14, sy + 14};
+            /* Two iconic 2.5D cooling towers (right side) */
+            int cty[2] = {sy - 18, sy + 10};
             for (int t = 0; t < 2; t++) {
-                gfx_circle(f, sx + 17, cty[t] + 2, 12, COL_BLACK);
-                gfx_circle(f, sx + 14, cty[t], 12, COL_WHITE);
-                gfx_circle_outline(f, sx + 14, cty[t], 12, COL_GRAY_DARK);
-                gfx_circle(f, sx + 14, cty[t], 7, COL_GRAY_DARK);
-                gfx_circle(f, sx + 14, cty[t], 4, COL_BLACK);
+                gfx_cyl_3d(f, sx + 17, cty[t], 12, 12, COL_WHITE, COL_GRAY_MID, COL_BLACK);
+                gfx_circle(f, sx + 17, cty[t], 7, COL_GRAY_DARK);
+                gfx_circle(f, sx + 17, cty[t], 4, COL_BLACK);
                 /* Subtle steam puff */
                 int puff = (int)(sinf(time_sec * 3.0f + (float)t * 2.0f) * 2.0f);
-                gfx_circle(f, sx + 14 + puff, cty[t] - 2, 3, COL_GRAY_LIGHT);
+                gfx_circle(f, sx + 17 + puff, cty[t] - 2, 3, COL_GRAY_LIGHT);
             }
             break;
         }
