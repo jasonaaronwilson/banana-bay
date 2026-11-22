@@ -182,12 +182,39 @@ static uint32_t village_hash(uint32_t x) {
     return x;
 }
 
+/* Little SimCity-style orthogonal road tiles connecting two village block centers */
+static void draw_village_road_segment(Framebuffer *f, int x0, int y0, int x1, int y1, int is_paved) {
+    uint8_t curb = is_paved ? COL_GRAY_DARK : COL_BROWN_DARK;
+    uint8_t surf = is_paved ? COL_GRAY_MID  : COL_SAND_DARK;
+    uint8_t mark = is_paved ? COL_YELLOW    : COL_SAND_LIGHT;
+    int rx = (x0 < x1) ? x0 : x1;
+    int rw = (x0 < x1 ? x1 - x0 : x0 - x1) + 1;
+    int ry = (y0 < y1) ? y0 : y1;
+    int rh = (y0 < y1 ? y1 - y0 : y0 - y1) + 1;
+    /* Horizontal leg along y0 */
+    if (rw > 2) {
+        gfx_rect(f, rx - 3, y0 - 3, rw + 6, 7, curb);
+        gfx_rect(f, rx - 2, y0 - 2, rw + 4, 5, surf);
+        for (int dx = 2; dx < rw - 2; dx += 6) {
+            gfx_rect(f, rx + dx, y0, 2, 1, mark);
+        }
+    }
+    /* Vertical leg along x1 */
+    if (rh > 2) {
+        gfx_rect(f, x1 - 3, ry - 3, 7, rh + 6, curb);
+        gfx_rect(f, x1 - 2, ry - 2, 5, rh + 4, surf);
+        for (int dy = 2; dy < rh - 2; dy += 6) {
+            gfx_rect(f, x1, ry + dy, 1, 2, mark);
+        }
+    }
+}
+
 /* Modular ~34x28px village block sprites assembled into diverse neighborhoods */
 static void draw_village_block(Framebuffer *f, int cx, int cy, int block_type,
                                uint32_t sub_seed, int damaged) {
     int s0 = (int)(sub_seed % 5U);
     int s1 = (int)((sub_seed >> 3) % 5U);
-    switch (block_type % 8) {
+    switch (block_type % 14) {
         case 0: /* Cottage pair */
             draw_village_house(f, cx - 7, cy - 6, (s0 == 3) ? 0 : s0, damaged);
             draw_village_house(f, cx + 8, cy + 5, (s1 == 3 || s1 == 4) ? 1 : s1, damaged);
@@ -241,6 +268,66 @@ static void draw_village_block(Framebuffer *f, int cx, int cy, int block_type,
             gfx_windows_3d(f, cx - 9, cy - 14, 20, 13, 14, 4, 3,
                            damaged ? COL_BLACK : COL_CYAN,
                            damaged ? COL_BLACK : COL_SHALLOW_SEA);
+            break;
+        case 8: /* L-shaped village inn / manor */
+            gfx_house_3d(f, cx - 11, cy - 8, 19, 9, 7,
+                         damaged ? COL_BROWN_DARK : COL_RED_DARK,
+                         damaged ? COL_ROCK_DARK : COL_ORANGE,
+                         damaged ? COL_GRAY_DARK : COL_SAND_LIGHT,
+                         damaged ? COL_BLACK : COL_BROWN,
+                         COL_BROWN_DARK, damaged ? COL_BLACK : COL_YELLOW);
+            gfx_house_3d(f, cx + 1, cy, 11, 9, 6,
+                         damaged ? COL_BROWN_DARK : COL_RED_DARK,
+                         damaged ? COL_ROCK_DARK : COL_ORANGE,
+                         damaged ? COL_GRAY_DARK : COL_WHITE,
+                         damaged ? COL_BLACK : COL_GRAY_MID,
+                         COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
+            break;
+        case 9: /* Whitewashed village chapel with steeple */
+            gfx_house_3d(f, cx - 8, cy - 5, 18, 10, 7,
+                         damaged ? COL_BROWN_DARK : COL_RED_DARK,
+                         damaged ? COL_ROCK_DARK : COL_RED,
+                         damaged ? COL_GRAY_DARK : COL_WHITE,
+                         damaged ? COL_BLACK : COL_GRAY_MID,
+                         COL_BROWN_DARK, damaged ? COL_BLACK : COL_CYAN);
+            gfx_box_3d(f, cx - 2, cy - 14, 7, 7, 11,
+                       damaged ? COL_GRAY_DARK : COL_YELLOW,
+                       damaged ? COL_GRAY_DARK : COL_WHITE,
+                       damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+            gfx_line(f, cx + 1, cy - 14, cx + 1, cy - 18, COL_YELLOW);
+            break;
+        case 10: /* Brick town hall with clock tower */
+            gfx_box_3d(f, cx - 10, cy - 7, 22, 12, 8,
+                       damaged ? COL_BROWN_DARK : COL_SAND_LIGHT,
+                       damaged ? COL_GRAY_DARK : COL_BROWN,
+                       damaged ? COL_BLACK : COL_BROWN_DARK, COL_BLACK);
+            gfx_box_3d(f, cx - 2, cy - 13, 8, 7, 9,
+                       damaged ? COL_GRAY_DARK : COL_GRAY_LIGHT,
+                       damaged ? COL_ROCK_DARK : COL_WHITE,
+                       damaged ? COL_BLACK : COL_GRAY_MID, COL_BLACK);
+            gfx_rect(f, cx - 2, cy - 3, 3, 3, damaged ? COL_BLACK : COL_CYAN);
+            break;
+        case 11: /* Beach tiki bar + sun umbrellas */
+            gfx_rect(f, cx - 13, cy - 7, 26, 16, damaged ? COL_ROCK_DARK : COL_BROWN);
+            gfx_house_3d(f, cx - 9, cy - 8, 16, 8, 5,
+                         damaged ? COL_BROWN_DARK : COL_SAND_DARK,
+                         damaged ? COL_ROCK_DARK : COL_YELLOW,
+                         damaged ? COL_GRAY_DARK : COL_BROWN,
+                         damaged ? COL_BLACK : COL_BROWN_DARK,
+                         COL_BLACK, damaged ? COL_BLACK : COL_ORANGE);
+            gfx_circle(f, cx + 8, cy + 4, 4, damaged ? COL_GRAY_DARK : COL_CYAN);
+            gfx_circle(f, cx - 7, cy + 5, 3, damaged ? COL_GRAY_DARK : COL_RED);
+            break;
+        case 12: /* Village green / tennis court */
+            gfx_rect(f, cx - 13, cy - 10, 26, 20, damaged ? COL_ROCK_DARK : COL_GRASS_DARK);
+            gfx_rect_outline(f, cx - 11, cy - 8, 22, 16, damaged ? COL_GRAY_DARK : COL_WHITE);
+            gfx_line(f, cx, cy - 8, cx, cy + 7, damaged ? COL_GRAY_MID : COL_WHITE);
+            break;
+        case 13: /* Row of 3 colorful narrow rowhouses */
+            for (int r = 0; r < 3; r++) {
+                int rx = cx - 9 + r * 9;
+                draw_village_house(f, rx, cy - 2 + (r & 1) * 2, (s0 + r) % 3, damaged);
+            }
             break;
     }
 }
@@ -484,9 +571,9 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
             VBlock blocks[24];
             int nb = 0;
 
-            static const int hamlet_pool[5]  = {0, 1, 2, 5, 6};
-            static const int village_pool[7] = {0, 1, 2, 3, 4, 5, 6};
-            static const int resort_pool[7]  = {4, 7, 5, 3, 6, 1, 7};
+            static const int hamlet_pool[8]  = {0, 1, 2, 5, 6, 8, 11, 13};
+            static const int village_pool[13] = {0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13};
+            static const int resort_pool[11]  = {4, 7, 5, 3, 6, 1, 7, 8, 11, 12, 13};
 
             float wlen = sqrtf(water_dx * water_dx + water_dy * water_dy);
             if (w && water_hits >= 2 && wlen > 0.2f) {
@@ -524,8 +611,8 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
                         float wx = shore_x + ix * ((float)d * 29.0f) + (float)jx;
                         float wy = shore_y + iy * ((float)d * 29.0f) + (float)jy;
                         if (!village_spot_on_land(w, wx, wy)) break;
-                        int btype = (s->size == 0) ? hamlet_pool[h % 5U]
-                                  : (is_resort ? resort_pool[h % 7U] : village_pool[h % 7U]);
+                        int btype = (s->size == 0) ? hamlet_pool[h % 8U]
+                                  : (is_resort ? resort_pool[h % 11U] : village_pool[h % 13U]);
                         blocks[nb++] = (VBlock){(int)(wx - cam_x), (int)(wy - cam_y), btype, h >> 8};
                     }
                 }
@@ -537,7 +624,7 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
                 int n_outer = (s->size >= 2) ? (4 + (int)(vseed % 3U)) : 0;
                 if (s->size >= 1) {
                     uint32_t hc = village_hash(vseed + 17U);
-                    int b0 = is_resort ? resort_pool[hc % 7U] : ((hc & 1U) ? 3 : village_pool[hc % 7U]);
+                    int b0 = is_resort ? resort_pool[hc % 11U] : ((hc & 1U) ? 3 : village_pool[hc % 13U]);
                     blocks[nb++] = (VBlock){sx + (int)(hc % 7U) - 3, sy + (int)((hc >> 3) % 7U) - 3, b0, hc >> 6};
                 }
                 float base_ang = (float)(vseed % 360U) * 0.017453f;
@@ -548,8 +635,8 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
                     float wx = s->x + cosf(ang) * rad;
                     float wy = s->y + sinf(ang) * rad * 0.86f;
                     if (!village_spot_on_land(w, wx, wy)) continue;
-                    int btype = (s->size == 0) ? hamlet_pool[h % 5U]
-                              : (is_resort ? resort_pool[h % 7U] : village_pool[h % 7U]);
+                    int btype = (s->size == 0) ? hamlet_pool[h % 8U]
+                              : (is_resort ? resort_pool[h % 11U] : village_pool[h % 13U]);
                     blocks[nb++] = (VBlock){(int)(wx - cam_x), (int)(wy - cam_y), btype, h >> 8};
                 }
                 for (int i = 0; i < n_outer && nb < 24; i++) {
@@ -560,20 +647,19 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
                     float wx = s->x + cosf(ang) * rad;
                     float wy = s->y + sinf(ang) * rad * 0.85f;
                     if (!village_spot_on_land(w, wx, wy)) continue;
-                    int btype = is_resort ? resort_pool[h % 7U] : village_pool[h % 7U];
+                    int btype = is_resort ? resort_pool[h % 11U] : village_pool[h % 13U];
                     blocks[nb++] = (VBlock){(int)(wx - cam_x), (int)(wy - cam_y), btype, h >> 8};
                 }
             }
 
-            /* Draw organic connecting village lanes between nearby blocks */
-            uint8_t road_col = is_resort ? COL_GRAY_MID : COL_SAND_DARK;
+            /* Draw little SimCity-style orthogonal road tiles between nearby blocks */
             for (int i = 0; i < nb; i++) {
                 for (int j = i + 1; j < nb; j++) {
                     int dx = blocks[j].x - blocks[i].x;
                     int dy = blocks[j].y - blocks[i].y;
                     if (dx * dx + dy * dy <= 48 * 48) {
-                        gfx_line(f, blocks[i].x, blocks[i].y, blocks[j].x, blocks[j].y, road_col);
-                        gfx_line(f, blocks[i].x + 1, blocks[i].y + 1, blocks[j].x + 1, blocks[j].y + 1, road_col);
+                        draw_village_road_segment(f, blocks[i].x, blocks[i].y + 4,
+                                                  blocks[j].x, blocks[j].y + 4, is_resort);
                     }
                 }
             }
