@@ -1,4 +1,4 @@
-const CACHE_NAME = 'banana-bay-v1';
+const CACHE_NAME = 'banana-bay-v2';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', (event) => {

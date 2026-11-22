@@ -463,17 +463,9 @@ static void heli_quad(Framebuffer *f, int sx, int sy, float c, float s,
     gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
 }
 
-static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
-    const PlayerHeli *p = &g->player;
-    if (p->invuln_timer > 0.0f && ((int)(p->invuln_timer * 16.0f) & 1)) {
-        return; /* Blink when invulnerable */
-    }
-
-    int sx = (int)(p->x - cam_x);
-    int sy = (int)(p->y - cam_y);
-
-    float c = cosf(p->angle);
-    float s = sinf(p->angle);
+static void draw_heli_at(Framebuffer *f, int sx, int sy, float angle, float rotor_phase) {
+    float c = cosf(angle);
+    float s = sinf(angle);
 
     /* Bell 222 / Airwolf ground shadow */
     int shx = sx + 13, shy = sy + 17;
@@ -524,12 +516,20 @@ static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y
 
     /* Spinning main rotor (rotor diameter slightly wider than fuselage) */
     for (int b = 0; b < 2; b++) {
-        float ra = p->rotor_phase + (float)b * ((float)M_PI * 0.5f);
+        float ra = rotor_phase + (float)b * ((float)M_PI * 0.5f);
         int rx = (int)(cosf(ra) * 31.0f);
         int ry = (int)(sinf(ra) * 31.0f);
         gfx_line(f, sx - rx, sy - ry, sx + rx, sy + ry, COL_WHITE);
     }
     gfx_rect(f, sx - 1, sy - 1, 3, 3, COL_RED);
+}
+
+static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
+    const PlayerHeli *p = &g->player;
+    if (p->invuln_timer > 0.0f && ((int)(p->invuln_timer * 16.0f) & 1)) {
+        return; /* Blink when invulnerable */
+    }
+    draw_heli_at(f, (int)(p->x - cam_x), (int)(p->y - cam_y), p->angle, p->rotor_phase);
 }
 
 static void draw_carrier_arrow(const Game *g, Framebuffer *f) {
@@ -774,7 +774,7 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     gfx_text(f, 210, 445, 2, COL_GRAY_LIGHT, "MOVE:   WASD / ARROWS / LEFT STICK / D-PAD");
     gfx_text(f, 210, 472, 2, COL_GRAY_LIGHT, "GUN:    SPACE / Z / J / GAMEPAD A");
     gfx_text(f, 210, 499, 2, COL_GRAY_LIGHT, "BOMB:   X / K / SHIFT / GAMEPAD B or X");
-    gfx_text(f, 210, 526, 2, COL_GRAY_LIGHT, "PAUSE:  P or ESC   MUTE: M   QUIT: Q");
+    gfx_text(f, 210, 526, 2, COL_GRAY_LIGHT, "PAUSE: P/ESC  MUTE: M  GALLERY: F1  QUIT: Q");
 
     gfx_text(f, 210, 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
     gfx_text(f, 210, 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
@@ -798,7 +798,201 @@ static void draw_quit_prompt(Framebuffer *f) {
     gfx_text(f, (SCREEN_W - gfx_text_width(2, opt)) / 2, 396, 2, COL_WHITE, "%s", opt);
 }
 
+static void draw_gallery_card(Framebuffer *f, int x, int y, int w, int h, const char *label) {
+    gfx_rect(f, x, y, w, h, web_rgb(0, 0, 1));
+    gfx_rect_outline(f, x, y, w, h, COL_GRAY_DARK);
+    int lw = gfx_text_width(1, label);
+    gfx_text(f, x + (w - lw) / 2, y + h - 12, 1, COL_GRAY_LIGHT, "%s", label);
+}
+
+static void draw_gallery_screen(const Game *g, Framebuffer *f) {
+    gfx_clear(f, COL_BLACK);
+
+    /* Header */
+    gfx_rect(f, 0, 0, SCREEN_W, 38, web_rgb(0, 0, 2));
+    gfx_rect(f, 0, 38, SCREEN_W, 2, COL_YELLOW);
+    gfx_text(f, 16, 11, 2, COL_YELLOW, "BANANA BAY - SPRITES, STRUCTURES & TILES");
+    gfx_text(f, SCREEN_W - 248, 13, 1, COL_CYAN, "PRESS F1 / ESC / ENTER TO RETURN");
+
+    /* Section 1: Terrain Tiles */
+    gfx_text(f, 16, 48, 1, COL_GREEN_BRIGHT, "TERRAIN TILES (16x16 BASE / PIXEL SWATCHES):");
+    static const char *tile_names[9] = {
+        "DEEP SEA", "MID SEA", "SHALLOWS", "BEACH SAND",
+        "GRASS", "JUNGLE", "ROCK", "ASPHALT ROAD", "BRIDGE"
+    };
+    uint8_t tile_cols[9];
+    tile_cols[0] = COL_DEEP_SEA;
+    tile_cols[1] = COL_MID_SEA;
+    tile_cols[2] = COL_SHALLOW_SEA;
+    tile_cols[3] = COL_SAND_LIGHT;
+    tile_cols[4] = COL_GRASS_LIGHT;
+    tile_cols[5] = COL_GRASS_DARK;
+    tile_cols[6] = COL_ROCK_LIGHT;
+    tile_cols[7] = COL_GRAY_DARK;
+    tile_cols[8] = COL_BROWN;
+
+    for (int i = 0; i < 9; i++) {
+        int x = 16 + i * 111;
+        int y = 62;
+        draw_gallery_card(f, x, y, 105, 56, tile_names[i]);
+        int sx = x + 36, sy = y + 8;
+        gfx_rect(f, sx, sy, 32, 24, tile_cols[i]);
+        if (i == 2) {
+            gfx_line(f, sx, sy + 20, sx + 31, sy + 20, COL_FOAM);
+        } else if (i == 5) {
+            gfx_rect(f, sx + 6, sy + 6, 6, 6, COL_JUNGLE_DARK);
+            gfx_rect(f, sx + 18, sy + 12, 6, 6, COL_JUNGLE_DARK);
+        } else if (i == 7) {
+            gfx_rect(f, sx, sy, 32, 2, COL_ROCK_DARK);
+            gfx_rect(f, sx, sy + 22, 32, 2, COL_ROCK_DARK);
+            gfx_rect(f, sx + 4, sy + 11, 8, 2, COL_YELLOW);
+            gfx_rect(f, sx + 20, sy + 11, 8, 2, COL_YELLOW);
+        } else if (i == 8) {
+            gfx_rect_outline(f, sx, sy, 32, 24, COL_BROWN_DARK);
+            for (int px = 4; px < 32; px += 6) {
+                gfx_line(f, sx + px, sy, sx + px, sy + 23, COL_BROWN_DARK);
+            }
+        }
+    }
+
+    /* Section 2: Aircraft & Naval Units */
+    gfx_text(f, 16, 130, 1, COL_GREEN_BRIGHT, "AIRCRAFT & NAVAL UNITS:");
+    draw_gallery_card(f, 16, 144, 175, 118, "AIRWOLF (PLAYER)");
+    draw_heli_at(f, 104, 196, -(float)M_PI * 0.5f, g->time_sec * 18.0f);
+
+    static const char *unit_names[3] = {"FIGHTER", "BOMBER", "PATROL BOAT"};
+    static const EnemyType unit_types[3] = {ENEMY_FIGHTER, ENEMY_BOMBER, ENEMY_BOAT};
+    for (int i = 0; i < 3; i++) {
+        int x = 199 + i * 175;
+        draw_gallery_card(f, x, 144, 167, 118, unit_names[i]);
+        EnemyUnit u = {0};
+        u.active = 1;
+        u.type = unit_types[i];
+        u.x = (float)(x + 83);
+        u.y = 196.0f;
+        u.angle = -0.55f;
+        u.hp = 100;
+        u.max_hp = 100;
+        draw_enemy(&u, f, 0, 0);
+    }
+
+    /* Tall carrier cards on the right */
+    draw_gallery_card(f, 728, 144, 136, 268, "FRIENDLY CV-1");
+    {
+        Game tmp = *g;
+        tmp.carrier.x = 796.0f;
+        tmp.carrier.y = 282.0f;
+        tmp.carrier.hp = tmp.carrier.max_hp = 100;
+        draw_carrier_friendly(&tmp, f, 0, 0);
+    }
+    draw_gallery_card(f, 872, 144, 136, 268, "ENEMY CARRIER");
+    {
+        EnemyUnit ec = {0};
+        ec.active = 1;
+        ec.type = ENEMY_CARRIER;
+        ec.x = 940.0f;
+        ec.y = 282.0f;
+        ec.angle = 0.0f;
+        ec.hp = ec.max_hp = 100;
+        draw_enemy(&ec, f, 0, 0);
+    }
+
+    /* Section 3: Island Structures */
+    gfx_text(f, 16, 274, 1, COL_GREEN_BRIGHT, "MILITARY & CIVILIAN STRUCTURES:");
+    typedef struct {
+        StructureType type;
+        int size;
+        const char *name;
+    } StructCard;
+
+    static const StructCard row1[5] = {
+        {STRUCT_FACTORY, 0, "SMALL FACTORY"},
+        {STRUCT_FACTORY, 1, "MEDIUM FACTORY"},
+        {STRUCT_FACTORY, 2, "LARGE FACTORY COMPLEX"},
+        {STRUCT_SHIPYARD, 0, "SHIPYARD (CV)"},
+        {STRUCT_NUCLEAR, 0, "NUCLEAR REACTOR"}
+    };
+    int r1_w[5] = {120, 132, 184, 128, 128};
+    int cx = 16;
+    for (int i = 0; i < 5; i++) {
+        int w = r1_w[i];
+        draw_gallery_card(f, cx, 288, w, 124, row1[i].name);
+        Structure st = {0};
+        st.active = 1;
+        st.type = row1[i].type;
+        st.size = row1[i].size;
+        st.x = (float)(cx + w / 2);
+        st.y = 344.0f;
+        st.hp = st.max_hp = 100;
+        st.level = 1;
+        st.build_progress = 0.5f;
+        st.building_carrier = (row1[i].type == STRUCT_SHIPYARD);
+        st.carrier_progress = 0.65f;
+        st.carrier_launched = 0;
+        draw_structure(&st, f, 0, 0, g->time_sec);
+        cx += w + 6;
+    }
+
+    static const StructCard row2[7] = {
+        {STRUCT_AA, 0, "AA BATTERY"},
+        {STRUCT_BARRACKS, 0, "BARRACKS"},
+        {STRUCT_RADAR, 0, "RADAR / SAM"},
+        {STRUCT_OIL_FIELD, 2, "OIL TANKS (1-3)"},
+        {STRUCT_BUNGALOW, 0, "COASTAL VILLAGE"},
+        {STRUCT_BUNGALOW, 2, "RESORT VILLAGE"},
+        {STRUCT_TOWER, 1, "RESORT TOWER"}
+    };
+    for (int i = 0; i < 7; i++) {
+        int x = 16 + i * 142;
+        draw_gallery_card(f, x, 424, 136, 118, row2[i].name);
+        Structure st = {0};
+        st.active = 1;
+        st.type = row2[i].type;
+        st.size = row2[i].size;
+        st.x = (float)(x + 68);
+        st.y = 476.0f;
+        st.hp = st.max_hp = 100;
+        st.level = 1;
+        draw_structure(&st, f, 0, 0, g->time_sec);
+    }
+
+    /* Section 4: Projectiles & FX */
+    gfx_text(f, 16, 554, 1, COL_GREEN_BRIGHT, "PROJECTILES & EFFECTS:");
+    draw_gallery_card(f, 16, 568, 160, 74, "CANNON TRACER");
+    gfx_circle(f, 96, 598, 3, COL_YELLOW);
+
+    draw_gallery_card(f, 184, 568, 160, 74, "FALLING BOMB");
+    gfx_circle(f, 268, 608, 3, COL_BLACK);
+    gfx_circle(f, 264, 594, 4, COL_YELLOW);
+    gfx_circle(f, 264, 594, 2, COL_RED);
+
+    draw_gallery_card(f, 352, 568, 160, 74, "EXPLOSION");
+    gfx_circle(f, 432, 598, 10, COL_RED);
+    gfx_circle(f, 432, 598, 6, COL_ORANGE);
+    gfx_circle(f, 432, 598, 3, COL_YELLOW);
+
+    draw_gallery_card(f, 520, 568, 160, 74, "DARK SMOKE");
+    gfx_circle(f, 594, 604, 4, COL_BLACK);
+    gfx_circle(f, 600, 598, 5, COL_GRAY_DARK);
+    gfx_circle(f, 607, 592, 6, COL_GRAY_MID);
+
+    draw_gallery_card(f, 688, 568, 160, 74, "CRATER");
+    gfx_circle(f, 768, 598, 12, COL_ROCK_DARK);
+    gfx_circle(f, 768, 598, 8, COL_BROWN_DARK);
+    gfx_circle(f, 768, 598, 4, COL_BLACK);
+
+    draw_gallery_card(f, 856, 568, 152, 74, "CARRIER ARROW");
+    gfx_triangle(f, 944, 598, 922, 589, 922, 607, COL_CYAN);
+    gfx_line(f, 944, 598, 922, 589, COL_WHITE);
+    gfx_line(f, 944, 598, 922, 607, COL_WHITE);
+}
+
 void render_game(const Game *g, Framebuffer *f) {
+    if (g->state == STATE_GALLERY) {
+        draw_gallery_screen(g, f);
+        if (g->quit_prompt) draw_quit_prompt(f);
+        return;
+    }
     if (g->state == STATE_TITLE) {
         draw_title_screen(g, f);
         if (g->quit_prompt) draw_quit_prompt(f);

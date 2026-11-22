@@ -159,6 +159,10 @@ static void main_loop_step(void *arg) {
                 case SDLK_m:
                     in.mute_pressed = 1;
                     break;
+                case SDLK_g:
+                case SDLK_F1:
+                    in.gallery_pressed = 1;
+                    break;
                 case SDLK_q:
                     in.quit_pressed = 1;
                     break;

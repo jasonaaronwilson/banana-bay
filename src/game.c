@@ -1148,6 +1148,23 @@ void game_update(Game *g, const InputState *in, float dt) {
 
     g->time_sec += dt;
 
+    if (g->state == STATE_GALLERY) {
+        audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
+        if (in->gallery_pressed || in->pause_pressed || in->confirm_pressed) {
+            g->state = g->prev_state;
+        }
+        return;
+    }
+
+    if (in->gallery_pressed) {
+        g->prev_state = g->state;
+        g->state = STATE_GALLERY;
+        audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
+        return;
+    }
+
     if (g->state == STATE_TITLE) {
         audio_set_rotor(0, 0.0f);
         audio_set_music(1);

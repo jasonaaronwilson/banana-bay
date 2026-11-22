@@ -24,7 +24,8 @@ typedef enum {
     STATE_PLAYING,
     STATE_PAUSED,
     STATE_VICTORY,
-    STATE_GAMEOVER
+    STATE_GAMEOVER,
+    STATE_GALLERY
 } GameStateType;
 
 typedef enum {
@@ -137,10 +138,12 @@ typedef struct {
     int quit_pressed;
     int yes_pressed;
     int no_pressed;
+    int gallery_pressed;
 } InputState;
 
 typedef struct {
     GameStateType state;
+    GameStateType prev_state;
     Difficulty difficulty;
     World world;
     PlayerHeli player;
