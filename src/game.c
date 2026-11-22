@@ -416,6 +416,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
 
     g->num_structures = 0;
     g->score = 0;
+    g->next_extra_life_score = 3000;
     g->factories_alive = 0;
     g->factories_destroyed = 0;
     g->enemy_carrier_alive = 0;
@@ -439,7 +440,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     g->player.max_hp = 100;
     g->player.hp = 100;
     g->player.bombs = MAX_BOMBS_CARRIED;
-    g->player.lives = (diff == DIFF_EASY) ? 5 : (diff == DIFF_NORMAL ? 3 : 2);
+    g->player.lives = (diff == DIFF_EASY) ? 3 : (diff == DIFF_NORMAL ? 2 : 1);
 
     g->cam_x = g->player.x - SCREEN_W * 0.5f;
     g->cam_y = g->player.y - SCREEN_H * 0.5f;
@@ -585,11 +586,21 @@ static void damage_player(Game *g, int dmg) {
     }
 }
 
+static void add_score(Game *g, int delta) {
+    g->score += delta;
+    if (g->score < 0) g->score = 0;
+    while (g->score >= g->next_extra_life_score) {
+        g->player.lives++;
+        g->next_extra_life_score += 10000;
+        set_status(g, "1UP! EXTRA HELICOPTER AWARDED (%d LEFT)", g->player.lives);
+        audio_play(SFX_RESUPPLY);
+    }
+}
+
 static void damage_structure(Game *g, Structure *s, int dmg) {
     if (!s->active) return;
     if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
-        g->score -= 50;
-        if (g->score < 0) g->score = 0;
+        add_score(g, -50);
         set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-50)");
         audio_play(SFX_PENALTY);
     }
@@ -603,17 +614,17 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
         if (s->type == STRUCT_FACTORY) {
             g->factories_alive--;
             g->factories_destroyed++;
-            g->score += 400 * (s->size + 1) * s->level;
+            add_score(g, 400 * (s->size + 1) * s->level);
             set_status(g, "%s FACTORY DESTROYED! %d REMAINING",
                        s->size == 2 ? "LARGE" : (s->size == 1 ? "MEDIUM" : "SMALL"),
                        g->factories_alive);
         } else if (s->type == STRUCT_SHIPYARD) {
-            g->score += s->building_carrier ? 800 : 400;
+            add_score(g, s->building_carrier ? 800 : 400);
             if (s->building_carrier && !s->carrier_launched) {
                 set_status(g, "ENEMY CARRIER SHIPYARD DESTROYED!");
             }
         } else if (s->type == STRUCT_OIL_FIELD) {
-            g->score += 200 * (s->size + 1);
+            add_score(g, 200 * (s->size + 1));
             float blast_r = 75.0f + (float)(s->size * 25);
             for (int k = 0; k < MAX_STRUCTURES; k++) {
                 Structure *other = &g->structures[k];
@@ -624,12 +635,11 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
                 }
             }
         } else if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
-            g->score -= 150;
-            if (g->score < 0) g->score = 0;
+            add_score(g, -150);
             set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-200)");
             audio_play(SFX_PENALTY);
         } else {
-            g->score += 150;
+            add_score(g, 150);
         }
     }
 }
@@ -642,12 +652,12 @@ static void damage_enemy(Game *g, EnemyUnit *e, int dmg) {
         spawn_explosion(g, e->x, e->y, e->type == ENEMY_CARRIER ? 55 : 18, 130.0f);
         if (e->type == ENEMY_CARRIER) {
             g->enemy_carrier_alive = 0;
-            g->score += 2000;
+            add_score(g, 2000);
             set_status(g, "ENEMY CARRIER SUNK!");
         } else if (e->type == ENEMY_BOMBER) {
-            g->score += 200;
+            add_score(g, 200);
         } else {
-            g->score += 100;
+            add_score(g, 100);
         }
     }
 }

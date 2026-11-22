@@ -160,6 +160,7 @@ typedef struct {
     float cam_x, cam_y;
     float time_sec;
     int score;
+    int next_extra_life_score;
     int factories_initial;
     int factories_alive;
     int factories_destroyed;
