@@ -34,6 +34,7 @@ static float g_gun_tail = 0.0f;
 static int g_music_active = 0;
 static int g_music_track = 0;
 static int g_music_loops = 0;
+static int g_music_songs_played = 0;
 static float g_music_downtime = 0.0f;
 static float g_music_time = 0.0f;
 static float g_music_mel_phase = 0.0f;
@@ -70,6 +71,7 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                     g_music_downtime = 0.0f;
                     g_music_track = (g_music_track + 1) % 6;
                     g_music_loops = 0;
+                    g_music_songs_played++;
                     g_music_time = 0.0f;
                     g_music_mel_phase = 0.0f;
                     g_music_bass_phase = 0.0f;
@@ -491,6 +493,24 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                     mix += next_noise() * senv * senv * 0.014f;
                 }
             }
+
+            /* First song starts at 1.0f and ducks to 0.38f; subsequent songs slowly swell to 0.52f and settle to 0.38f */
+            float music_vol = 0.38f;
+            if (g_music_loops == 0) {
+                float peak_vol   = (g_music_songs_played == 0) ? 1.0f : 0.52f;
+                float swell_end  = 16.0f * step_dur;
+                float fade_start = 48.0f * step_dur;
+                float fade_end   = 80.0f * step_dur;
+                if (g_music_songs_played > 0 && g_music_time < swell_end) {
+                    music_vol = peak_vol * (g_music_time / swell_end);
+                } else if (g_music_time <= fade_start) {
+                    music_vol = peak_vol;
+                } else if (g_music_time < fade_end) {
+                    float f = (g_music_time - fade_start) / (fade_end - fade_start);
+                    music_vol = peak_vol - f * (peak_vol - 0.38f);
+                }
+            }
+            mix *= music_vol;
             }
         }
 
@@ -694,6 +714,7 @@ void audio_set_music(int active) {
     if (active && !g_music_active) {
         g_music_time = 0.0f;
         g_music_loops = 0;
+        g_music_songs_played = 0;
         g_music_downtime = 0.0f;
         g_music_mel_phase = 0.0f;
         g_music_bass_phase = 0.0f;
