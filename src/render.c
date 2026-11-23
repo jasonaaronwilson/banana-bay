@@ -1237,6 +1237,52 @@ static void draw_hud(const Game *g, Framebuffer *f) {
     draw_carrier_arrow(g, f);
 }
 
+/* Laid-back, zero-pressure prompt: rests calmly and cycles through slow drifts & soft fades */
+static void draw_relaxed_prompt(Framebuffer *f, const char *prompt, int y, float t, int cyan_tint) {
+    int pw = gfx_text_width(2, prompt);
+    int base_x = (SCREEN_W - pw) / 2;
+    const uint8_t warm_ramp[5] = {COL_BROWN_DARK, COL_BROWN, COL_ORANGE, COL_SAND_LIGHT, COL_YELLOW};
+    const uint8_t cool_ramp[5] = {COL_BLUE_DARK, COL_BLUE_DARK, COL_SHALLOW_SEA, COL_CYAN, COL_WHITE};
+    const uint8_t *ramp = cyan_tint ? cool_ramp : warm_ramp;
+
+    const float cycle_dur = 10.0f;
+    int mode = ((int)(t / cycle_dur)) % 4;
+    float u = fmodf(t, cycle_dur) / cycle_dur;
+    /* Smooth plateau wave: holds calmly at 0 during first/last 2.5s, eases gently in the middle */
+    float mid = 0.0f;
+    if (u > 0.20f && u < 0.80f) {
+        float m = (u - 0.20f) / 0.60f;
+        mid = 0.5f - 0.5f * cosf(m * 2.0f * (float)M_PI);
+    }
+    int dx = 0, dy = 0;
+    uint8_t pcol = ramp[3];
+
+    if (mode == 0) {
+        /* Slow breath from quiet dim up to warm readable glow and back */
+        int idx = 1 + (int)(mid * 3.2f);
+        if (idx > 4) idx = 4;
+        pcol = ramp[idx];
+    } else if (mode == 1) {
+        /* Calm pause, then slow drift right and back */
+        float s = (u > 0.20f && u < 0.80f) ? sinf(((u - 0.20f) / 0.60f) * 2.0f * (float)M_PI) : 0.0f;
+        dx = (int)(s * 24.0f);
+        pcol = ramp[2 + (mid > 0.5f ? 1 : 0)];
+    } else if (mode == 2) {
+        /* Calm pause, then slow drift left with subtle float */
+        float s = (u > 0.20f && u < 0.80f) ? sinf(((u - 0.20f) / 0.60f) * 2.0f * (float)M_PI) : 0.0f;
+        dx = (int)(-s * 24.0f);
+        dy = (int)(mid * 1.5f);
+        pcol = ramp[2 + (mid > 0.4f ? 1 : 0)];
+    } else {
+        /* Quietest resting phase: mostly still, very gentle shimmer */
+        int idx = 1 + (int)(mid * 2.4f);
+        if (idx > 3) idx = 3;
+        pcol = ramp[idx];
+        dx = (int)(mid * 8.0f - 4.0f);
+    }
+    gfx_text(f, base_x + dx, y + dy, 2, pcol, "%s", prompt);
+}
+
 static void draw_title_screen(const Game *g, Framebuffer *f) {
     /* Draw lush island background behind title */
     world_render(&g->world, f, 900, 1200, g->time_sec);
@@ -1277,10 +1323,7 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     gfx_text(f, 210, 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
     gfx_text(f, 210, 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
 
-    if (((int)(g->time_sec * 3.0f)) & 1) {
-        const char *prompt = "PRESS ENTER OR GAMEPAD START/A TO LAUNCH";
-        gfx_text(f, (SCREEN_W - gfx_text_width(2, prompt)) / 2, 636, 2, COL_YELLOW, "%s", prompt);
-    }
+    draw_relaxed_prompt(f, "PRESS ENTER OR GAMEPAD START/A TO LAUNCH", 636, g->time_sec, 0);
     gfx_text(f, 158, 660, 1, COL_GRAY_MID, "v%s", BANANA_BAY_VERSION);
 }
 
@@ -1590,8 +1633,7 @@ void render_game(const Game *g, Framebuffer *f) {
         gfx_text(f, 330, 385, 2, COL_YELLOW, "FACTORIES DESTROYED: %d", g->factories_destroyed);
 
         if (g->end_screen_timer <= 0.0f) {
-            const char *again = "PRESS ENTER OR START/A TO CONTINUE";
-            gfx_text(f, (SCREEN_W - gfx_text_width(2, again)) / 2, 435, 2, COL_CYAN, "%s", again);
+            draw_relaxed_prompt(f, "PRESS ENTER OR START/A TO CONTINUE", 435, g->time_sec, 1);
         }
     }
 
