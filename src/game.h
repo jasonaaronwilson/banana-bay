@@ -54,6 +54,8 @@ typedef struct {
     int building_carrier;   /* 1 if this shipyard is building the enemy carrier */
     float carrier_progress; /* 0..1 */
     int carrier_launched;
+    float hit_x[6], hit_y[6]; /* World coords of recent hits for local damage */
+    int num_hits;
 } Structure;
 
 typedef enum {

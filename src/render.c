@@ -674,15 +674,39 @@ static void draw_structure(const Structure *s, Framebuffer *f, const World *w,
                     }
                 }
             }
+            int scorch_r2 = heavy ? (30 * 30) : (22 * 22);
             for (int i = 0; i < nb; i++) {
-                draw_village_block(f, blocks[i].x, blocks[i].y, blocks[i].type, blocks[i].sub, damaged);
+                int block_damaged = 0;
+                if (damaged) {
+                    if (s->num_hits > 0) {
+                        for (int k = 0; k < s->num_hits && k < 6; k++) {
+                            int hx = (int)s->hit_x[k] - cam_x;
+                            int hy = (int)s->hit_y[k] - cam_y;
+                            int dx = blocks[i].x - hx;
+                            int dy = blocks[i].y - hy;
+                            if (dx * dx + dy * dy <= scorch_r2) {
+                                block_damaged = 1;
+                                break;
+                            }
+                        }
+                    } else if (i == 0) {
+                        block_damaged = 1;
+                    }
+                }
+                draw_village_block(f, blocks[i].x, blocks[i].y, blocks[i].type, blocks[i].sub, block_damaged);
             }
 
-            if (damaged && nb > 0) {
+            if (damaged) {
                 int fl = ((int)(time_sec * 11.0f)) & 1;
-                gfx_circle(f, blocks[0].x, blocks[0].y - 2, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
-                if (heavy && nb > 1) {
-                    gfx_circle(f, blocks[nb - 1].x, blocks[nb - 1].y - 2, fl ? 3 : 4, COL_YELLOW);
+                if (s->num_hits > 0) {
+                    for (int k = 0; k < s->num_hits && k < 6; k++) {
+                        int hx = (int)s->hit_x[k] - cam_x;
+                        int hy = (int)s->hit_y[k] - cam_y;
+                        gfx_circle(f, hx, hy, 4, COL_BLACK);
+                        gfx_circle(f, hx, hy - 1, (fl ^ (k & 1)) ? 3 : 2, (fl ^ (k & 1)) ? COL_ORANGE : COL_RED);
+                    }
+                } else if (nb > 0) {
+                    gfx_circle(f, blocks[0].x, blocks[0].y - 2, fl ? 4 : 3, fl ? COL_ORANGE : COL_RED);
                 }
             }
             break;

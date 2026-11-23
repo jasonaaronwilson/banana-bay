@@ -603,8 +603,24 @@ static void add_score(Game *g, int delta) {
     }
 }
 
-static void damage_structure(Game *g, Structure *s, int dmg) {
+static void damage_structure(Game *g, Structure *s, int dmg, float hx, float hy) {
     if (!s->active) return;
+    /* Record local impact coordinate (for localized village damage & fires) */
+    int near_prev = 0;
+    for (int i = 0; i < s->num_hits && i < 6; i++) {
+        float dx = s->hit_x[i] - hx;
+        float dy = s->hit_y[i] - hy;
+        if (dx * dx + dy * dy < 16.0f * 16.0f) {
+            near_prev = 1;
+            break;
+        }
+    }
+    if (!near_prev) {
+        int slot = s->num_hits % 6;
+        s->hit_x[slot] = hx;
+        s->hit_y[slot] = hy;
+        if (s->num_hits < 6) s->num_hits++;
+    }
     if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
         add_score(g, -50);
         set_alert_status(g, "AVOID CIVILIAN CASUALTIES! (-50)");
@@ -637,7 +653,7 @@ static void damage_structure(Game *g, Structure *s, int dmg) {
                 if (!other->active) continue;
                 float dx = other->x - s->x, dy = other->y - s->y;
                 if (dx * dx + dy * dy <= blast_r * blast_r) {
-                    damage_structure(g, other, 45 + s->size * 15);
+                    damage_structure(g, other, 45 + s->size * 15, s->x, s->y);
                 }
             }
         } else if (s->type == STRUCT_BUNGALOW || s->type == STRUCT_TOWER) {
@@ -1050,7 +1066,7 @@ static void update_projectiles(Game *g, float dt) {
                     int dmg = (g->difficulty == DIFF_EASY && st->type == STRUCT_AA)
                               ? st->max_hp
                               : (st->type == STRUCT_OIL_FIELD ? b->damage : (b->damage / 2));
-                    damage_structure(g, st, dmg);
+                    damage_structure(g, st, dmg, b->x, b->y);
                     spawn_particle(g, b->x, b->y, 0, 0, 0.2f, 2.0f, COL_ORANGE);
                     break;
                 }
@@ -1121,7 +1137,7 @@ static void update_projectiles(Game *g, float dt) {
                         audio_play(SFX_GAMEOVER);
                         return;
                     }
-                    damage_structure(g, st, 55);
+                    damage_structure(g, st, 55, bm->x, bm->y);
                 }
             }
             for (int e = 0; e < MAX_ENEMIES; e++) {
