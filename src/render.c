@@ -1030,15 +1030,16 @@ static void draw_player_heli(const Game *g, Framebuffer *f, int cam_x, int cam_y
     draw_heli_at(f, (int)(p->x - cam_x), (int)(p->y - cam_y), p->angle, p->rotor_phase);
 }
 
-static void draw_carrier_arrow(const Game *g, Framebuffer *f) {
-    int cx = (int)(g->carrier.x - g->cam_x);
-    int cy = (int)(g->carrier.y - g->cam_y);
+static void draw_edge_arrow(const Game *g, Framebuffer *f, float target_x, float target_y,
+                            uint8_t fill_col, uint8_t outline_col, const char *tag) {
+    int cx = (int)(target_x - g->cam_x);
+    int cy = (int)(target_y - g->cam_y);
     if (cx >= 20 && cx <= SCREEN_W - 20 && cy >= 40 && cy <= SCREEN_H - 20) {
-        return; /* Carrier is visible on screen */
+        return; /* Target is visible on screen */
     }
 
-    float dx = g->carrier.x - g->player.x;
-    float dy = g->carrier.y - g->player.y;
+    float dx = target_x - g->player.x;
+    float dy = target_y - g->player.y;
     float dist = sqrtf(dx * dx + dy * dy);
     float ang = atan2f(dy, dx);
 
@@ -1060,11 +1061,36 @@ static void draw_carrier_arrow(const Game *g, Framebuffer *f) {
     int r_x = ax + (int)(-ca * 8.0f + sa * 9.0f);
     int r_y = ay + (int)(-sa * 8.0f - ca * 9.0f);
 
-    gfx_triangle(f, tip_x, tip_y, l_x, l_y, r_x, r_y, COL_CYAN);
-    gfx_line(f, tip_x, tip_y, l_x, l_y, COL_WHITE);
-    gfx_line(f, tip_x, tip_y, r_x, r_y, COL_WHITE);
+    gfx_triangle(f, tip_x, tip_y, l_x, l_y, r_x, r_y, fill_col);
+    gfx_line(f, tip_x, tip_y, l_x, l_y, outline_col);
+    gfx_line(f, tip_x, tip_y, r_x, r_y, outline_col);
 
-    gfx_text(f, ax - 20, ay + 16, 1, COL_CYAN, "CV %dm", (int)(dist * 0.5f));
+    gfx_text(f, ax - 22, ay + 16, 1, fill_col, "%s %dm", tag, (int)(dist * 0.5f));
+}
+
+static void draw_carrier_arrow(const Game *g, Framebuffer *f) {
+    draw_edge_arrow(g, f, g->carrier.x, g->carrier.y, COL_CYAN, COL_WHITE, "CV");
+}
+
+static void draw_target_arrow(const Game *g, Framebuffer *f) {
+    if (g->factories_alive <= 0 || g->factories_alive >= 3) return;
+    int best = -1;
+    float best_d2 = 1e30f;
+    for (int i = 0; i < MAX_STRUCTURES; i++) {
+        const Structure *s = &g->structures[i];
+        if (!s->active || s->type != STRUCT_FACTORY) continue;
+        float dx = s->x - g->player.x;
+        float dy = s->y - g->player.y;
+        float d2 = dx * dx + dy * dy;
+        if (d2 < best_d2) {
+            best_d2 = d2;
+            best = i;
+        }
+    }
+    if (best >= 0) {
+        draw_edge_arrow(g, f, g->structures[best].x, g->structures[best].y,
+                        COL_ORANGE, COL_YELLOW, "TGT");
+    }
 }
 
 static void draw_minimap(const Game *g, Framebuffer *f) {
@@ -1235,6 +1261,7 @@ static void draw_hud(const Game *g, Framebuffer *f) {
 
     draw_minimap(g, f);
     draw_carrier_arrow(g, f);
+    draw_target_arrow(g, f);
 }
 
 /* Laid-back, zero-pressure prompt: rests calmly and cycles through slow drifts & soft fades */
