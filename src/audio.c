@@ -68,7 +68,7 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 g_music_downtime -= dt;
                 if (g_music_downtime <= 0.0f) {
                     g_music_downtime = 0.0f;
-                    g_music_track = (g_music_track + 1) % 3;
+                    g_music_track = (g_music_track + 1) % 5;
                     g_music_loops = 0;
                     g_music_time = 0.0f;
                     g_music_mel_phase = 0.0f;
@@ -77,7 +77,8 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                     g_music_timp_phase = 0.0f;
                 }
             } else {
-            const float step_dur = (g_music_track == 0) ? 0.30f : ((g_music_track == 1) ? 0.24f : 0.27f);
+            static const float step_durs[5] = {0.30f, 0.24f, 0.27f, 0.22f, 0.28f};
+            const float step_dur = step_durs[g_music_track % 5];
             const int num_steps = 96;
             float loop_dur = step_dur * (float)num_steps;
             g_music_time += dt;
@@ -245,9 +246,107 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 220.00f, 293.66f, 349.23f, 440.00f, 220.00f, -1.0f,   -1.0f,   0.0f
             };
 
-            const float *mel_tbl  = (g_music_track == 0) ? mel0_hz  : ((g_music_track == 1) ? mel1_hz  : mel2_hz);
-            const float *bass_tbl = (g_music_track == 0) ? bass0_hz : ((g_music_track == 1) ? bass1_hz : bass2_hz);
-            const float *harm_tbl = (g_music_track == 0) ? fife0_hz : ((g_music_track == 1) ? harm1_hz : harm2_hz);
+            /* Track 3: "Pacific Hornpipe" — A-minor / C-major brisk maritime march */
+            static const float mel3_hz[96] = {
+                /* Section A */
+                329.63f, 440.00f, 523.25f, 493.88f, 440.00f, -1.0f,   329.63f, 0.0f,
+                392.00f, 493.88f, 587.33f, 523.25f, 493.88f, -1.0f,   392.00f, 0.0f,
+                523.25f, 587.33f, 659.25f, 587.33f, 523.25f, 493.88f, 440.00f, 392.00f,
+                329.63f, 440.00f, 493.88f, 415.30f, 440.00f, -1.0f,   0.0f,    0.0f,
+                /* Section B */
+                523.25f, 659.25f, 783.99f, -1.0f,   659.25f, 587.33f, 523.25f, 0.0f,
+                587.33f, 698.46f, 880.00f, -1.0f,   698.46f, 659.25f, 587.33f, 0.0f,
+                659.25f, 783.99f, 523.25f, 587.33f, 659.25f, 523.25f, 493.88f, 392.00f,
+                440.00f, 493.88f, 523.25f, 392.00f, 440.00f, -1.0f,   0.0f,    0.0f,
+                /* Section C */
+                587.33f, 698.46f, 659.25f, 587.33f, 523.25f, 493.88f, 440.00f, 0.0f,
+                493.88f, 659.25f, 830.61f, 659.25f, 587.33f, 523.25f, 493.88f, 0.0f,
+                440.00f, 523.25f, 659.25f, 783.99f, 659.25f, 587.33f, 523.25f, 493.88f,
+                440.00f, 329.63f, 415.30f, 493.88f, 440.00f, -1.0f,   -1.0f,   0.0f
+            };
+            static const float bass3_hz[96] = {
+                110.00f, 164.81f, 110.00f, 164.81f, 110.00f, 164.81f, 110.00f, 164.81f,
+                98.00f,  146.83f, 98.00f,  146.83f, 98.00f,  146.83f, 98.00f,  146.83f,
+                130.81f, 196.00f, 130.81f, 196.00f, 110.00f, 164.81f, 98.00f,  146.83f,
+                110.00f, 146.83f, 164.81f, 207.65f, 110.00f, 164.81f, 110.00f, 0.0f,
+                130.81f, 196.00f, 130.81f, 196.00f, 130.81f, 196.00f, 130.81f, 196.00f,
+                146.83f, 174.61f, 146.83f, 174.61f, 146.83f, 174.61f, 98.00f,  146.83f,
+                130.81f, 196.00f, 130.81f, 196.00f, 130.81f, 164.81f, 98.00f,  146.83f,
+                110.00f, 123.47f, 130.81f, 98.00f,  110.00f, 164.81f, 110.00f, 0.0f,
+                146.83f, 174.61f, 146.83f, 174.61f, 130.81f, 123.47f, 110.00f, 164.81f,
+                164.81f, 207.65f, 164.81f, 207.65f, 146.83f, 130.81f, 123.47f, 164.81f,
+                110.00f, 130.81f, 164.81f, 196.00f, 164.81f, 146.83f, 130.81f, 123.47f,
+                110.00f, 164.81f, 207.65f, 164.81f, 110.00f, 164.81f, 110.00f, 0.0f
+            };
+            static const float harm3_hz[96] = {
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                392.00f, 523.25f, 659.25f, -1.0f,   523.25f, 493.88f, 392.00f, 0.0f,
+                440.00f, 587.33f, 698.46f, -1.0f,   587.33f, 523.25f, 493.88f, 0.0f,
+                523.25f, 659.25f, 392.00f, 440.00f, 523.25f, 392.00f, 392.00f, 293.66f,
+                329.63f, 392.00f, 440.00f, 293.66f, 329.63f, -1.0f,   0.0f,    0.0f,
+                440.00f, 587.33f, 523.25f, 440.00f, 392.00f, 349.23f, 329.63f, 0.0f,
+                329.63f, 493.88f, 659.25f, 493.88f, 440.00f, 392.00f, 329.63f, 0.0f,
+                329.63f, 440.00f, 523.25f, 659.25f, 523.25f, 440.00f, 392.00f, 329.63f,
+                329.63f, 261.63f, 329.63f, 392.00f, 329.63f, -1.0f,   -1.0f,   0.0f
+            };
+
+            /* Track 4: "Ironclad Patrol" — E-minor / G-major heavy destroyer march */
+            static const float mel4_hz[96] = {
+                /* Section A */
+                246.94f, 329.63f, -1.0f,   392.00f, 369.99f, 329.63f, -1.0f,   0.0f,
+                293.66f, 369.99f, -1.0f,   440.00f, 392.00f, 369.99f, -1.0f,   0.0f,
+                329.63f, 392.00f, 493.88f, -1.0f,   659.25f, 587.33f, 493.88f, 440.00f,
+                392.00f, -1.0f,   369.99f, 329.63f, 293.66f, -1.0f,   0.0f,    0.0f,
+                /* Section B */
+                392.00f, 493.88f, -1.0f,   587.33f, 523.25f, 493.88f, -1.0f,   0.0f,
+                523.25f, 659.25f, -1.0f,   783.99f, 739.99f, 659.25f, -1.0f,   0.0f,
+                587.33f, 523.25f, 493.88f, 440.00f, 392.00f, 440.00f, 493.88f, 392.00f,
+                440.00f, -1.0f,   369.99f, 293.66f, 392.00f, -1.0f,   0.0f,    0.0f,
+                /* Section C */
+                440.00f, 523.25f, 659.25f, -1.0f,   587.33f, 523.25f, 493.88f, -1.0f,
+                493.88f, 622.25f, 739.99f, -1.0f,   659.25f, 587.33f, 493.88f, 0.0f,
+                659.25f, 587.33f, 523.25f, 493.88f, 440.00f, 392.00f, 369.99f, 311.13f,
+                329.63f, 392.00f, 493.88f, 659.25f, 329.63f, -1.0f,   -1.0f,   0.0f
+            };
+            static const float bass4_hz[96] = {
+                82.41f,  123.47f, 164.81f, 123.47f, 82.41f,  123.47f, 164.81f, 123.47f,
+                146.83f, 110.00f, 146.83f, 185.00f, 98.00f,  146.83f, 123.47f, 0.0f,
+                82.41f,  123.47f, 164.81f, 196.00f, 130.81f, 146.83f, 123.47f, 110.00f,
+                98.00f,  146.83f, 110.00f, 130.81f, 146.83f, 110.00f, 146.83f, 0.0f,
+                98.00f,  146.83f, 196.00f, 146.83f, 98.00f,  146.83f, 196.00f, 146.83f,
+                130.81f, 164.81f, 196.00f, 164.81f, 130.81f, 164.81f, 196.00f, 0.0f,
+                146.83f, 130.81f, 123.47f, 110.00f, 98.00f,  110.00f, 123.47f, 98.00f,
+                110.00f, 146.83f, 185.00f, 146.83f, 98.00f,  146.83f, 98.00f,  0.0f,
+                110.00f, 164.81f, 130.81f, 164.81f, 146.83f, 130.81f, 123.47f, 164.81f,
+                123.47f, 185.00f, 123.47f, 185.00f, 164.81f, 146.83f, 123.47f, 0.0f,
+                130.81f, 146.83f, 164.81f, 123.47f, 110.00f, 98.00f,  185.00f, 123.47f,
+                82.41f,  123.47f, 164.81f, 123.47f, 82.41f,  123.47f, 82.41f,  0.0f
+            };
+            static const float harm4_hz[96] = {
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                293.66f, 392.00f, -1.0f,   493.88f, 440.00f, 392.00f, -1.0f,   0.0f,
+                392.00f, 523.25f, -1.0f,   659.25f, 587.33f, 523.25f, -1.0f,   0.0f,
+                493.88f, 440.00f, 392.00f, 329.63f, 293.66f, 329.63f, 392.00f, 293.66f,
+                329.63f, -1.0f,   293.66f, 220.00f, 293.66f, -1.0f,   0.0f,    0.0f,
+                329.63f, 440.00f, 523.25f, -1.0f,   493.88f, 440.00f, 392.00f, -1.0f,
+                369.99f, 493.88f, 622.25f, -1.0f,   493.88f, 440.00f, 369.99f, 0.0f,
+                523.25f, 493.88f, 440.00f, 392.00f, 329.63f, 293.66f, 246.94f, 246.94f,
+                246.94f, 329.63f, 392.00f, 493.88f, 246.94f, -1.0f,   -1.0f,   0.0f
+            };
+
+            const float *mel_tbls[5]  = {mel0_hz,  mel1_hz,  mel2_hz,  mel3_hz,  mel4_hz};
+            const float *bass_tbls[5] = {bass0_hz, bass1_hz, bass2_hz, bass3_hz, bass4_hz};
+            const float *harm_tbls[5] = {fife0_hz, harm1_hz, harm2_hz, harm3_hz, harm4_hz};
+            int trk = g_music_track % 5;
+            const float *mel_tbl  = mel_tbls[trk];
+            const float *bass_tbl = bass_tbls[trk];
+            const float *harm_tbl = harm_tbls[trk];
 
             /* Resolve sustained (-1.0f) melody notes cleanly */
             int ms = step;
@@ -514,7 +613,7 @@ void audio_set_music(int active) {
         g_music_bass_phase = 0.0f;
         g_music_harm_phase = 0.0f;
         g_music_timp_phase = 0.0f;
-        g_music_track = (int)(((uint32_t)time(NULL) ^ (uint32_t)SDL_GetTicks() ^ g_noise_state) % 3u);
+        g_music_track = (int)(((uint32_t)time(NULL) ^ (uint32_t)SDL_GetTicks() ^ g_noise_state) % 5u);
     }
     g_music_active = active;
 }
