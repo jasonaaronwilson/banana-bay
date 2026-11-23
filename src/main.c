@@ -153,8 +153,14 @@ static void main_loop_step(void *arg) {
                     in.confirm_pressed = 1;
                     break;
                 case SDLK_p:
-                case SDLK_ESCAPE:
                     in.pause_pressed = 1;
+                    break;
+                case SDLK_ESCAPE:
+                    if (game->state == STATE_TITLE && !game->quit_prompt) {
+                        in.mute_pressed = 1;
+                    } else {
+                        in.pause_pressed = 1;
+                    }
                     break;
                 case SDLK_m:
                     in.mute_pressed = 1;

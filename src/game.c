@@ -1181,6 +1181,7 @@ void game_update(Game *g, const InputState *in, float dt) {
     if (g->quit_prompt) {
         audio_set_rotor(0, 0.0f);
         audio_set_gun(0);
+        audio_set_music(0);
         if (in->yes_pressed || in->confirm_pressed) {
             g->should_quit = 1;
         } else if (in->no_pressed || in->pause_pressed || in->quit_pressed) {
@@ -1192,6 +1193,8 @@ void game_update(Game *g, const InputState *in, float dt) {
     if (in->quit_pressed) {
         g->quit_prompt = 1;
         audio_set_rotor(0, 0.0f);
+        audio_set_gun(0);
+        audio_set_music(0);
         return;
     }
 

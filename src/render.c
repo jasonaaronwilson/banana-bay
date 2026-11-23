@@ -1272,7 +1272,7 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     gfx_text(f, 210, 445, 2, COL_GRAY_LIGHT, "MOVE:   WASD / ARROWS / LEFT STICK / D-PAD");
     gfx_text(f, 210, 472, 2, COL_GRAY_LIGHT, "GUN:    SPACE / Z / J / GAMEPAD A");
     gfx_text(f, 210, 499, 2, COL_GRAY_LIGHT, "BOMB:   X / K / SHIFT / GAMEPAD B or X");
-    gfx_text(f, 210, 526, 2, COL_GRAY_LIGHT, "PAUSE: P/ESC  MUTE: M  GALLERY: F1  QUIT: Q");
+    gfx_text(f, 190, 526, 2, COL_GRAY_LIGHT, "PAUSE: P/ESC  MUTE: M/ESC  GALLERY: F1  QUIT: Q");
 
     gfx_text(f, 210, 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
     gfx_text(f, 210, 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
