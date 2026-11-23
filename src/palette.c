@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+int g_screen_w = BASE_SCREEN_W;
+int g_screen_h = BASE_SCREEN_H;
+
 uint8_t COL_BLACK;
 uint8_t COL_WHITE;
 uint8_t COL_GRAY_DARK;
@@ -132,7 +135,7 @@ void gfx_clear(Framebuffer *f, uint8_t col) {
 }
 
 void gfx_pixel(Framebuffer *f, int x, int y, uint8_t col) {
-    if ((unsigned)x < SCREEN_W && (unsigned)y < SCREEN_H) {
+    if ((unsigned)x < (unsigned)SCREEN_W && (unsigned)y < (unsigned)SCREEN_H) {
         f->fb[y * SCREEN_W + x] = col;
     }
 }
@@ -166,7 +169,7 @@ void gfx_circle(Framebuffer *f, int cx, int cy, int r, uint8_t col) {
     int r2 = r * r;
     for (int dy = -r; dy <= r; dy++) {
         int py = cy + dy;
-        if ((unsigned)py >= SCREEN_H) continue;
+        if ((unsigned)py >= (unsigned)SCREEN_H) continue;
         int dx_max = 0;
         while ((dx_max + 1) * (dx_max + 1) + dy * dy <= r2) dx_max++;
         int x0 = cx - dx_max;
@@ -232,7 +235,7 @@ void gfx_triangle(Framebuffer *f, int x0, int y0, int x1, int y1, int x2, int y2
         int bx = second_half ? x1 + (int)((x2 - x1) * beta) : x0 + (int)((x1 - x0) * beta);
         if (ax > bx) swap_int(&ax, &bx);
         int py = y0 + i;
-        if ((unsigned)py < SCREEN_H) {
+        if ((unsigned)py < (unsigned)SCREEN_H) {
             int sx = ax < 0 ? 0 : ax;
             int ex = bx >= SCREEN_W ? SCREEN_W - 1 : bx;
             if (sx <= ex) {

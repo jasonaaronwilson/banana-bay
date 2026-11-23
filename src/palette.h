@@ -3,11 +3,18 @@
 
 #include <stdint.h>
 
-#define SCREEN_W 1024
-#define SCREEN_H 768
+#define BASE_SCREEN_W 1024
+#define BASE_SCREEN_H 768
+#define MAX_SCREEN_W  2048
+#define MAX_SCREEN_H  1280
+
+extern int g_screen_w;
+extern int g_screen_h;
+#define SCREEN_W g_screen_w
+#define SCREEN_H g_screen_h
 
 typedef struct {
-    uint8_t fb[SCREEN_W * SCREEN_H];
+    uint8_t fb[MAX_SCREEN_W * MAX_SCREEN_H];
     uint32_t rgba[256];
 } Framebuffer;
 

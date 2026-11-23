@@ -20,23 +20,16 @@
     }
     #canvas {
       display: block;
-      width: min(98vw, calc(92vh * 4 / 3));
-      height: min(92vh, calc(98vw * 3 / 4));
+      width: 100vw;
+      height: 100vh;
       image-rendering: pixelated;
-      border: 2px solid #334455;
       background: #000;
       outline: none;
-    }
-    #hint {
-      margin-top: 6px;
-      font-size: 12px;
-      color: #8899aa;
     }
   </style>
 </head>
 <body>
-  <canvas id="canvas" width="1024" height="768" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
-  <div id="hint">Click canvas to focus &amp; enable audio | WASD/Arrows: Move | Space/Z: Gun | X/Shift: Bomb | M: Mute</div>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
   <script>
     var Module = {
       canvas: (function() {

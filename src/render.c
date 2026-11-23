@@ -1162,7 +1162,7 @@ static void draw_hud(const Game *g, Framebuffer *f) {
     gfx_text(f, 675, 11, 2, COL_CYAN, "CV:%d%%", (g->carrier.hp * 100) / g->carrier.max_hp);
 
     /* Score */
-    gfx_text(f, 825, 11, 2, COL_WHITE, "SCORE:%05d", g->score);
+    gfx_text(f, SCREEN_W - 199, 11, 2, COL_WHITE, "SCORE:%05d", g->score);
 
     /* Mute indicator */
     if (audio_is_muted()) {
@@ -1287,61 +1287,66 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
     /* Draw lush island background behind title */
     world_render(&g->world, f, 900, 1200, g->time_sec);
 
+    int ox = (SCREEN_W - 1024) / 2;
+    int oy = (SCREEN_H - 768) / 2;
+
     /* Dark overlay box */
-    gfx_rect(f, 142, 90, 740, 588, COL_BLACK);
-    gfx_rect_outline(f, 142, 90, 740, 588, COL_YELLOW);
-    gfx_rect_outline(f, 146, 94, 732, 580, COL_ORANGE);
+    gfx_rect(f, ox + 142, oy + 90, 740, 588, COL_BLACK);
+    gfx_rect_outline(f, ox + 142, oy + 90, 740, 588, COL_YELLOW);
+    gfx_rect_outline(f, ox + 146, oy + 94, 732, 580, COL_ORANGE);
 
     const char *title = "BANANA BAY";
     int tw = gfx_text_width(6, title);
-    gfx_text(f, (SCREEN_W - tw) / 2 + 3, 133, 6, COL_RED_DARK, "%s", title);
-    gfx_text(f, (SCREEN_W - tw) / 2,     130, 6, COL_YELLOW, "%s", title);
+    gfx_text(f, (SCREEN_W - tw) / 2 + 3, oy + 133, 6, COL_RED_DARK, "%s", title);
+    gfx_text(f, (SCREEN_W - tw) / 2,     oy + 130, 6, COL_YELLOW, "%s", title);
 
     const char *sub = "OPERATION: TROPICAL THUNDER";
-    gfx_text(f, (SCREEN_W - gfx_text_width(2, sub)) / 2, 195, 2, COL_CYAN, "%s", sub);
+    gfx_text(f, (SCREEN_W - gfx_text_width(2, sub)) / 2, oy + 195, 2, COL_CYAN, "%s", sub);
 
     /* Difficulty selector */
-    gfx_text(f, 340, 260, 2, COL_WHITE, "SELECT DIFFICULTY:");
+    gfx_text(f, ox + 340, oy + 260, 2, COL_WHITE, "SELECT DIFFICULTY:");
     static const char *diff_names[3] = {"1. EASY   (RELAXED)", "2. NORMAL (ARCADE)", "3. HARD   (VETERAN)"};
     for (int i = 0; i < 3; i++) {
         int sel = ((int)g->difficulty == i);
         uint8_t col = sel ? COL_YELLOW : COL_GRAY_LIGHT;
         if (sel) {
-            gfx_rect(f, 330, 294 + i * 32, 364, 24, COL_BLUE_DARK);
-            gfx_rect_outline(f, 330, 294 + i * 32, 364, 24, COL_YELLOW);
+            gfx_rect(f, ox + 330, oy + 294 + i * 32, 364, 24, COL_BLUE_DARK);
+            gfx_rect_outline(f, ox + 330, oy + 294 + i * 32, 364, 24, COL_YELLOW);
         }
-        gfx_text(f, 348, 299 + i * 32, 2, col, "%s%s", sel ? "> " : "  ", diff_names[i]);
+        gfx_text(f, ox + 348, oy + 299 + i * 32, 2, col, "%s%s", sel ? "> " : "  ", diff_names[i]);
     }
 
     /* Controls summary */
-    gfx_text(f, 210, 415, 2, COL_GREEN_BRIGHT, "CONTROLS:");
-    gfx_text(f, 210, 445, 2, COL_GRAY_LIGHT, "MOVE:   WASD / ARROWS / LEFT STICK / D-PAD");
-    gfx_text(f, 210, 472, 2, COL_GRAY_LIGHT, "GUN:    SPACE / Z / J / GAMEPAD A");
-    gfx_text(f, 210, 499, 2, COL_GRAY_LIGHT, "BOMB:   X / K / SHIFT / GAMEPAD B or X");
-    gfx_text(f, 190, 526, 2, COL_GRAY_LIGHT, "PAUSE: P/ESC  MUTE: M/ESC  GALLERY: F1  QUIT: Q");
+    gfx_text(f, ox + 210, oy + 415, 2, COL_GREEN_BRIGHT, "CONTROLS:");
+    gfx_text(f, ox + 210, oy + 445, 2, COL_GRAY_LIGHT, "MOVE:   WASD / ARROWS / LEFT STICK / D-PAD");
+    gfx_text(f, ox + 210, oy + 472, 2, COL_GRAY_LIGHT, "GUN:    SPACE / Z / J / GAMEPAD A");
+    gfx_text(f, ox + 210, oy + 499, 2, COL_GRAY_LIGHT, "BOMB:   X / K / SHIFT / GAMEPAD B or X");
+    gfx_text(f, ox + 190, oy + 526, 2, COL_GRAY_LIGHT, "PAUSE: P/ESC  MUTE: M/ESC  GALLERY: F1  QUIT: Q");
 
-    gfx_text(f, 210, 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
-    gfx_text(f, 210, 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
+    gfx_text(f, ox + 210, oy + 570, 2, COL_ORANGE, "DESTROY ALL ENEMY FACTORIES. PROTECT YOUR CARRIER!");
+    gfx_text(f, ox + 210, oy + 595, 2, COL_CYAN,   "FLY OVER YOUR CARRIER TO REARM BOMBS & REPAIR.");
 
-    draw_relaxed_prompt(f, "PRESS ENTER OR GAMEPAD START/A TO LAUNCH", 636, g->time_sec, 0);
-    gfx_text(f, 158, 660, 1, COL_GRAY_MID, "v%s", BANANA_BAY_VERSION);
+    draw_relaxed_prompt(f, "PRESS ENTER OR GAMEPAD START/A TO LAUNCH", oy + 636, g->time_sec, 0);
+    gfx_text(f, ox + 158, oy + 660, 1, COL_GRAY_MID, "v%s", BANANA_BAY_VERSION);
     {
         char mstr[64];
         snprintf(mstr, sizeof(mstr), "< TRACK %d/8: %s >", audio_music_index() + 1, audio_music_name());
-        gfx_text(f, 868 - gfx_text_width(1, mstr), 660, 1, COL_GRAY_MID, "%s", mstr);
+        gfx_text(f, ox + 868 - gfx_text_width(1, mstr), oy + 660, 1, COL_GRAY_MID, "%s", mstr);
     }
 }
 
 static void draw_quit_prompt(Framebuffer *f) {
-    gfx_rect(f, 272, 304, 480, 148, COL_BLACK);
-    gfx_rect_outline(f, 272, 304, 480, 148, COL_RED);
-    gfx_rect_outline(f, 276, 308, 472, 140, COL_YELLOW);
+    int ox = (SCREEN_W - 1024) / 2;
+    int oy = (SCREEN_H - 768) / 2;
+    gfx_rect(f, ox + 272, oy + 304, 480, 148, COL_BLACK);
+    gfx_rect_outline(f, ox + 272, oy + 304, 480, 148, COL_RED);
+    gfx_rect_outline(f, ox + 276, oy + 308, 472, 140, COL_YELLOW);
 
     const char *hdr = "QUIT BANANA BAY?";
-    gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, 332, 3, COL_YELLOW, "%s", hdr);
+    gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, oy + 332, 3, COL_YELLOW, "%s", hdr);
 
     const char *opt = "[Y / ENTER] YES    [N / ESC] NO";
-    gfx_text(f, (SCREEN_W - gfx_text_width(2, opt)) / 2, 396, 2, COL_WHITE, "%s", opt);
+    gfx_text(f, (SCREEN_W - gfx_text_width(2, opt)) / 2, oy + 396, 2, COL_WHITE, "%s", opt);
 }
 
 static void draw_gallery_card(Framebuffer *f, int x, int y, int w, int h, const char *label) {
@@ -1616,29 +1621,32 @@ void render_game(const Game *g, Framebuffer *f) {
 
     draw_hud(g, f);
 
+    int ox = (SCREEN_W - 1024) / 2;
+    int oy = (SCREEN_H - 768) / 2;
+
     if (g->state == STATE_PAUSED) {
-        gfx_rect(f, 342, 320, 340, 120, COL_BLACK);
-        gfx_rect_outline(f, 342, 320, 340, 120, COL_YELLOW);
+        gfx_rect(f, ox + 342, oy + 320, 340, 120, COL_BLACK);
+        gfx_rect_outline(f, ox + 342, oy + 320, 340, 120, COL_YELLOW);
         const char *p = "PAUSED";
-        gfx_text(f, (SCREEN_W - gfx_text_width(4, p)) / 2, 348, 4, COL_YELLOW, "%s", p);
+        gfx_text(f, (SCREEN_W - gfx_text_width(4, p)) / 2, oy + 348, 4, COL_YELLOW, "%s", p);
         const char *r = "PRESS P/ESC TO RESUME";
-        gfx_text(f, (SCREEN_W - gfx_text_width(2, r)) / 2, 400, 2, COL_WHITE, "%s", r);
+        gfx_text(f, (SCREEN_W - gfx_text_width(2, r)) / 2, oy + 400, 2, COL_WHITE, "%s", r);
     } else if (g->state == STATE_VICTORY || g->state == STATE_GAMEOVER) {
-        gfx_rect(f, 242, 260, 540, 220, COL_BLACK);
-        gfx_rect_outline(f, 242, 260, 540, 220, g->state == STATE_VICTORY ? COL_GREEN_BRIGHT : COL_RED);
+        gfx_rect(f, ox + 242, oy + 260, 540, 220, COL_BLACK);
+        gfx_rect_outline(f, ox + 242, oy + 260, 540, 220, g->state == STATE_VICTORY ? COL_GREEN_BRIGHT : COL_RED);
         const char *hdr = (g->state == STATE_VICTORY) ? "MISSION ACCOMPLISHED!" : "MISSION FAILED";
-        gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, 290, 3,
+        gfx_text(f, (SCREEN_W - gfx_text_width(3, hdr)) / 2, oy + 290, 3,
                  g->state == STATE_VICTORY ? COL_GREEN_BRIGHT : COL_RED, "%s", hdr);
         if (g->state == STATE_GAMEOVER && g->gameover_reason[0]) {
-            gfx_text(f, (SCREEN_W - gfx_text_width(2, g->gameover_reason)) / 2, 326, 2,
+            gfx_text(f, (SCREEN_W - gfx_text_width(2, g->gameover_reason)) / 2, oy + 326, 2,
                      COL_YELLOW, "%s", g->gameover_reason);
         }
 
-        gfx_text(f, 330, 355, 2, COL_WHITE, "FINAL SCORE: %d", g->score);
-        gfx_text(f, 330, 385, 2, COL_YELLOW, "FACTORIES DESTROYED: %d", g->factories_destroyed);
+        gfx_text(f, ox + 330, oy + 355, 2, COL_WHITE, "FINAL SCORE: %d", g->score);
+        gfx_text(f, ox + 330, oy + 385, 2, COL_YELLOW, "FACTORIES DESTROYED: %d", g->factories_destroyed);
 
         if (g->end_screen_timer <= 0.0f) {
-            draw_relaxed_prompt(f, "PRESS ENTER OR START/A TO CONTINUE", 435, g->time_sec, 1);
+            draw_relaxed_prompt(f, "PRESS ENTER OR START/A TO CONTINUE", oy + 435, g->time_sec, 1);
         }
     }
 

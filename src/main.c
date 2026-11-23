@@ -69,6 +69,11 @@ EM_JS(void, web_poll_gamepad, (float *out_mx, float *out_my, int *out_gun, int *
     HEAP32[out_a >> 2] = ba;
     HEAP32[out_b >> 2] = bb;
 });
+
+EM_JS(void, web_get_viewport_size, (int *out_w, int *out_h), {
+    HEAP32[out_w >> 2] = window.innerWidth || 1024;
+    HEAP32[out_h >> 2] = window.innerHeight || 768;
+});
 #endif
 #include <math.h>
 #include <stdio.h>
@@ -122,12 +127,64 @@ typedef struct {
     SDL_Joystick *joystick;
     int running;
     int prev_bomb;
+    int prev_vw, prev_vh;
     Uint64 prev_ticks;
     double freq;
 } AppState;
 
+static void sync_viewport_size(AppState *app) {
+    int vw = BASE_SCREEN_W, vh = BASE_SCREEN_H;
+#ifdef __EMSCRIPTEN__
+    web_get_viewport_size(&vw, &vh);
+    if (vw < 320) vw = 320;
+    if (vh < 240) vh = 240;
+    if (vw != app->prev_vw || vh != app->prev_vh) {
+        SDL_SetWindowSize(app->window, vw, vh);
+    }
+#else
+    SDL_GetWindowSize(app->window, &vw, &vh);
+    if (vw < 320) vw = 320;
+    if (vh < 240) vh = 240;
+#endif
+    if (vw == app->prev_vw && vh == app->prev_vh) return;
+    app->prev_vw = vw;
+    app->prev_vh = vh;
+
+    /* Fill viewport cleanly while keeping ~768p 1995ish pixel density */
+    int nh = BASE_SCREEN_H;
+    int nw = (vw * nh + vh / 2) / vh;
+    if (nw < 640) {
+        nw = 640;
+        nh = (vh * nw + vw / 2) / vw;
+    }
+    if (nw > MAX_SCREEN_W) {
+        nw = MAX_SCREEN_W;
+        nh = (vh * nw + vw / 2) / vw;
+    }
+    if (nh > MAX_SCREEN_H) {
+        nh = MAX_SCREEN_H;
+        nw = (vw * nh + vh / 2) / vh;
+    }
+    if (nw < 320) nw = 320;
+    if (nh < 240) nh = 240;
+
+    if (nw != g_screen_w || nh != g_screen_h) {
+        g_screen_w = nw;
+        g_screen_h = nh;
+        SDL_Texture *ntex = SDL_CreateTexture(
+            app->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+            g_screen_w, g_screen_h
+        );
+        if (ntex) {
+            if (app->texture) SDL_DestroyTexture(app->texture);
+            app->texture = ntex;
+        }
+    }
+}
+
 static void main_loop_step(void *arg) {
     AppState *app = (AppState *)arg;
+    sync_viewport_size(app);
     Game *game = app->game;
     Framebuffer *fb = app->fb;
 
@@ -413,6 +470,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+
     SDL_Renderer *renderer = SDL_CreateRenderer(
         window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
@@ -433,8 +492,6 @@ int main(int argc, char **argv) {
                 SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "unknown",
                 rinfo.name ? rinfo.name : "unknown");
     }
-
-    SDL_RenderSetLogicalSize(renderer, SCREEN_W, SCREEN_H);
 
     SDL_Texture *texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
@@ -475,8 +532,11 @@ int main(int argc, char **argv) {
     app.controller = open_first_controller(&app.joystick);
     app.running = 1;
     app.prev_bomb = 0;
+    app.prev_vw = 0;
+    app.prev_vh = 0;
     app.prev_ticks = SDL_GetPerformanceCounter();
     app.freq = (double)SDL_GetPerformanceFrequency();
+    sync_viewport_size(&app);
 
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop_arg(main_loop_step, &app, 0, 1);
