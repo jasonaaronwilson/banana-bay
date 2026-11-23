@@ -68,7 +68,7 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 g_music_downtime -= dt;
                 if (g_music_downtime <= 0.0f) {
                     g_music_downtime = 0.0f;
-                    g_music_track = (g_music_track + 1) % 5;
+                    g_music_track = (g_music_track + 1) % 6;
                     g_music_loops = 0;
                     g_music_time = 0.0f;
                     g_music_mel_phase = 0.0f;
@@ -77,8 +77,8 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                     g_music_timp_phase = 0.0f;
                 }
             } else {
-            static const float step_durs[5] = {0.30f, 0.24f, 0.27f, 0.22f, 0.28f};
-            const float step_dur = step_durs[g_music_track % 5];
+            static const float step_durs[6] = {0.30f, 0.24f, 0.27f, 0.22f, 0.28f, 0.25f};
+            const float step_dur = step_durs[g_music_track % 6];
             const int num_steps = 96;
             float loop_dur = step_dur * (float)num_steps;
             g_music_time += dt;
@@ -340,15 +340,68 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 246.94f, 329.63f, 392.00f, 493.88f, 246.94f, -1.0f,   -1.0f,   0.0f
             };
 
-            const float *mel_tbls[5]  = {mel0_hz,  mel1_hz,  mel2_hz,  mel3_hz,  mel4_hz};
-            const float *bass_tbls[5] = {bass0_hz, bass1_hz, bass2_hz, bass3_hz, bass4_hz};
-            const float *harm_tbls[5] = {fife0_hz, harm1_hz, harm2_hz, harm3_hz, harm4_hz};
-            int trk = g_music_track % 5;
+            /* Track 5: "Coral Dawn" — Bb-major / G-minor tropical naval patrol */
+            static const float mel5_hz[96] = {
+                /* Section A */
+                349.23f, 466.16f, -1.0f,   587.33f, 523.25f, 466.16f, -1.0f,   0.0f,
+                392.00f, 466.16f, 523.25f, -1.0f,   622.25f, 587.33f, 523.25f, 0.0f,
+                587.33f, 698.46f, 587.33f, 523.25f, 466.16f, 392.00f, 349.23f, 0.0f,
+                392.00f, 440.00f, 466.16f, 349.23f, 466.16f, -1.0f,   0.0f,    0.0f,
+                /* Section B */
+                392.00f, 466.16f, 587.33f, -1.0f,   783.99f, -1.0f,   698.46f, 0.0f,
+                622.25f, 587.33f, 523.25f, -1.0f,   466.16f, -1.0f,   392.00f, 0.0f,
+                523.25f, 587.33f, 622.25f, 698.46f, 783.99f, 698.46f, 622.25f, 587.33f,
+                523.25f, 466.16f, 440.00f, 349.23f, 466.16f, -1.0f,   0.0f,    0.0f,
+                /* Section C */
+                622.25f, 698.46f, 783.99f, -1.0f,   698.46f, 622.25f, 587.33f, 0.0f,
+                523.25f, 587.33f, 622.25f, -1.0f,   587.33f, 523.25f, 466.16f, 0.0f,
+                466.16f, 523.25f, 587.33f, 698.46f, 587.33f, 523.25f, 440.00f, 349.23f,
+                466.16f, 587.33f, 698.46f, 587.33f, 466.16f, -1.0f,   -1.0f,   0.0f
+            };
+            static const float bass5_hz[96] = {
+                116.54f, 174.61f, 116.54f, 174.61f, 116.54f, 174.61f, 116.54f, 174.61f,
+                98.00f,  146.83f, 130.81f, 196.00f, 155.56f, 146.83f, 130.81f, 0.0f,
+                116.54f, 174.61f, 146.83f, 130.81f, 116.54f, 98.00f,  87.31f,  0.0f,
+                98.00f,  110.00f, 116.54f, 87.31f,  116.54f, 174.61f, 116.54f, 0.0f,
+                98.00f,  146.83f, 98.00f,  146.83f, 98.00f,  146.83f, 98.00f,  0.0f,
+                155.56f, 146.83f, 130.81f, 196.00f, 116.54f, 174.61f, 98.00f,  0.0f,
+                130.81f, 146.83f, 155.56f, 174.61f, 196.00f, 174.61f, 155.56f, 146.83f,
+                130.81f, 116.54f, 110.00f, 87.31f,  116.54f, 174.61f, 116.54f, 0.0f,
+                155.56f, 174.61f, 196.00f, 155.56f, 174.61f, 155.56f, 146.83f, 0.0f,
+                130.81f, 146.83f, 155.56f, 196.00f, 146.83f, 130.81f, 116.54f, 0.0f,
+                116.54f, 130.81f, 146.83f, 174.61f, 146.83f, 130.81f, 110.00f, 87.31f,
+                116.54f, 146.83f, 174.61f, 146.83f, 116.54f, 174.61f, 116.54f, 0.0f
+            };
+            static const float harm5_hz[96] = {
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                293.66f, 392.00f, 466.16f, -1.0f,   587.33f, -1.0f,   523.25f, 0.0f,
+                466.16f, 440.00f, 392.00f, -1.0f,   349.23f, -1.0f,   293.66f, 0.0f,
+                392.00f, 440.00f, 466.16f, 523.25f, 587.33f, 523.25f, 466.16f, 440.00f,
+                392.00f, 349.23f, 349.23f, 261.63f, 349.23f, -1.0f,   0.0f,    0.0f,
+                466.16f, 523.25f, 587.33f, -1.0f,   523.25f, 466.16f, 440.00f, 0.0f,
+                392.00f, 440.00f, 466.16f, -1.0f,   440.00f, 392.00f, 349.23f, 0.0f,
+                349.23f, 392.00f, 466.16f, 523.25f, 466.16f, 392.00f, 349.23f, 261.63f,
+                349.23f, 466.16f, 523.25f, 466.16f, 349.23f, -1.0f,   -1.0f,   0.0f
+            };
+
+            const float *mel_tbls[6]  = {mel0_hz,  mel1_hz,  mel2_hz,  mel3_hz,  mel4_hz,  mel5_hz};
+            const float *bass_tbls[6] = {bass0_hz, bass1_hz, bass2_hz, bass3_hz, bass4_hz, bass5_hz};
+            const float *harm_tbls[6] = {fife0_hz, harm1_hz, harm2_hz, harm3_hz, harm4_hz, harm5_hz};
+            int trk = g_music_track % 6;
             const float *mel_tbl  = mel_tbls[trk];
             const float *bass_tbl = bass_tbls[trk];
             const float *harm_tbl = harm_tbls[trk];
 
-            /* Resolve sustained (-1.0f) melody notes cleanly */
+            /* Per-track instrument palette:
+               0: Horn + Fife + Sine Tuba + Snare
+               1: Bright Trumpet + Brass Harmony + Plucked Bass + Snare
+               2: Sea Accordion (vibrato reed) + String Pad + Deep Bass + Woodblock
+               3: Pennywhistle / Flute + Plucked Harp + Octave Bass + Shaker
+               4: Heavy Low Brass + French Horn + Electric Pulse Bass + Snare
+               5: Steel Drum / Marimba + Bell Chimes + Warm Bass + Shaker */
             int ms = step;
             while (ms > 0 && mel_tbl[ms] < 0.0f) ms--;
             float mf = mel_tbl[ms];
@@ -357,13 +410,33 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 while (me + 1 < num_steps && mel_tbl[me + 1] < 0.0f) me++;
                 int total_steps = me - ms + 1;
                 float held_u = ((float)(step - ms) + u) / (float)total_steps;
-                g_music_mel_phase += mf * dt;
+                float vib = (trk == 2 || trk == 3) ? (1.0f + 0.005f * sinf(g_music_time * 28.0f)) : 1.0f;
+                g_music_mel_phase += mf * vib * dt;
                 if (g_music_mel_phase >= 1.0f) g_music_mel_phase -= 1.0f;
                 float atk = (step == ms && u < 0.08f) ? (u / 0.08f) : 1.0f;
                 float rel = 1.0f - held_u * 0.50f;
-                float tri = 1.0f - 4.0f * fabsf(g_music_mel_phase - 0.5f);
-                float sin_t = sinf(g_music_mel_phase * 2.0f * (float)M_PI);
-                mix += (tri * 0.45f + sin_t * 0.55f) * atk * rel * 0.062f;
+                float ph = g_music_mel_phase;
+                float tri = 1.0f - 4.0f * fabsf(ph - 0.5f);
+                float sin_t = sinf(ph * 2.0f * (float)M_PI);
+                float saw = 1.0f - 2.0f * ph;
+                float sq = (ph < 0.5f) ? 1.0f : -1.0f;
+                float tone = 0.0f;
+                if (trk == 0) {
+                    tone = tri * 0.45f + sin_t * 0.55f; /* Warm naval horn */
+                } else if (trk == 1) {
+                    tone = saw * 0.35f + sin_t * 0.45f + sinf(ph * 4.0f * (float)M_PI) * 0.20f; /* Bright trumpet */
+                } else if (trk == 2) {
+                    tone = sq * 0.25f + tri * 0.55f + sin_t * 0.20f; /* Sea accordion / reed */
+                } else if (trk == 3) {
+                    tone = sin_t * 0.82f + sinf(ph * 4.0f * (float)M_PI) * 0.18f; /* Pennywhistle / flute */
+                } else if (trk == 4) {
+                    tone = saw * 0.45f + tri * 0.40f + sinf(ph * (float)M_PI) * 0.15f; /* Heavy destroyer brass */
+                } else {
+                    float perc = expf(-held_u * 3.8f);
+                    tone = (sin_t * 0.72f + sinf(ph * 6.0f * (float)M_PI) * 0.28f * (1.0f - held_u)) * perc; /* Steel drum / marimba */
+                    rel = 1.0f;
+                }
+                mix += tone * atk * rel * ((trk == 4) ? 0.056f : 0.062f);
             }
 
             int hs = step;
@@ -377,18 +450,24 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 g_music_harm_phase += hf * dt;
                 if (g_music_harm_phase >= 1.0f) g_music_harm_phase -= 1.0f;
                 float atk = (step == hs && u < 0.12f) ? (u / 0.12f) : 1.0f;
-                float rel = 1.0f - held_u * 0.65f;
-                float f1 = sinf(g_music_harm_phase * 2.0f * (float)M_PI);
-                float f2 = sinf(g_music_harm_phase * 4.0f * (float)M_PI);
-                mix += (f1 * 0.80f + f2 * 0.20f) * atk * rel * ((g_music_track == 0) ? 0.030f : 0.034f);
+                float rel = (trk == 3 || trk == 5) ? expf(-held_u * 3.2f) : (1.0f - held_u * 0.65f);
+                float hph = g_music_harm_phase;
+                float f1 = sinf(hph * 2.0f * (float)M_PI);
+                float f2 = sinf(hph * 4.0f * (float)M_PI);
+                float htone = (trk == 2) ? (1.0f - 4.0f * fabsf(hph - 0.5f)) : (f1 * 0.80f + f2 * 0.20f);
+                mix += htone * atk * rel * 0.032f;
             }
 
             float bf = bass_tbl[step];
             if (bf > 0.0f) {
                 g_music_bass_phase += bf * dt;
                 if (g_music_bass_phase >= 1.0f) g_music_bass_phase -= 1.0f;
-                float benv = 1.0f - u * 0.55f;
-                mix += sinf(g_music_bass_phase * 2.0f * (float)M_PI) * benv * 0.052f;
+                float benv = (trk == 1 || trk == 3) ? expf(-u * 2.8f) : (1.0f - u * 0.55f);
+                float bsin = sinf(g_music_bass_phase * 2.0f * (float)M_PI);
+                float btone = (trk == 4)
+                    ? (bsin * 0.70f + (1.0f - 4.0f * fabsf(g_music_bass_phase - 0.5f)) * 0.30f)
+                    : ((trk == 1) ? (bsin * 0.80f + sinf(g_music_bass_phase * 4.0f * (float)M_PI) * 0.20f) : bsin);
+                mix += btone * benv * 0.052f;
             }
 
             /* Naval timpani hit on bar downbeats & cadence starting in Section B */
@@ -400,10 +479,17 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 mix += sinf(g_music_timp_phase * 2.0f * (float)M_PI) * tenv * tenv * 0.065f;
             }
 
-            /* Soft brushed snare march pulse on beats */
-            if ((step & 1) == 0 || (step & 7) == 7) {
-                float senv = (u < 0.25f) ? (1.0f - u * 4.0f) : 0.0f;
-                mix += next_noise() * senv * senv * 0.018f;
+            /* Varied percussion: brushed snare (0,1,4) vs crisp shaker/woodblock (2,3,5) */
+            if (trk == 0 || trk == 1 || trk == 4) {
+                if ((step & 1) == 0 || (step & 7) == 7) {
+                    float senv = (u < 0.25f) ? (1.0f - u * 4.0f) : 0.0f;
+                    mix += next_noise() * senv * senv * 0.018f;
+                }
+            } else {
+                if ((step & 1) == 1) {
+                    float senv = (u < 0.14f) ? (1.0f - u * 7.0f) : 0.0f;
+                    mix += next_noise() * senv * senv * 0.014f;
+                }
             }
             }
         }
@@ -613,7 +699,7 @@ void audio_set_music(int active) {
         g_music_bass_phase = 0.0f;
         g_music_harm_phase = 0.0f;
         g_music_timp_phase = 0.0f;
-        g_music_track = (int)(((uint32_t)time(NULL) ^ (uint32_t)SDL_GetTicks() ^ g_noise_state) % 5u);
+        g_music_track = (int)(((uint32_t)time(NULL) ^ (uint32_t)SDL_GetTicks() ^ g_noise_state) % 6u);
     }
     g_music_active = active;
 }
