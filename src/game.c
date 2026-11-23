@@ -143,24 +143,59 @@ static void spawn_enemy(Game *g, EnemyType type, float x, float y) {
     }
 }
 
-static int find_land_spot(const Game *g, int min_dist_from_existing, float *out_x, float *out_y) {
+static int is_civilian_type(StructureType t) {
+    return (t == STRUCT_BUNGALOW || t == STRUCT_TOWER);
+}
+
+static int struct_footprint_radius(StructureType t, int size) {
+    switch (t) {
+        case STRUCT_FACTORY:   return (size == 0) ? 24 : (size == 1 ? 34 : 56);
+        case STRUCT_SHIPYARD:  return 28;
+        case STRUCT_NUCLEAR:   return 34;
+        case STRUCT_BUNGALOW:  return (size == 0) ? 34 : (size == 1 ? 46 : 62);
+        case STRUCT_TOWER:     return 22;
+        case STRUCT_OIL_FIELD: return (size == 2) ? 28 : 20;
+        default:               return 20;
+    }
+}
+
+/* Minimum edge-to-edge clearance between valid military targets and civilian infrastructure: 5, 4, 3 tiles */
+static int civ_mil_clearance_px(Difficulty diff) {
+    int tiles = (diff == DIFF_EASY) ? 5 : (diff == DIFF_NORMAL ? 4 : 3);
+    return tiles * TILE_SIZE;
+}
+
+static int spot_respects_clearance(const Game *g, StructureType candidate_type,
+                                   float wx, float wy, int min_dist) {
+    int cand_civ = is_civilian_type(candidate_type);
+    int cand_rad = struct_footprint_radius(candidate_type, 2);
+    int extra_civ_mil = civ_mil_clearance_px(g->difficulty);
+    for (int i = 0; i < MAX_STRUCTURES; i++) {
+        const Structure *s = &g->structures[i];
+        if (!s->active) continue;
+        float dx = s->x - wx;
+        float dy = s->y - wy;
+        int req = min_dist;
+        if (cand_civ != is_civilian_type(s->type)) {
+            int sep = cand_rad + struct_footprint_radius(s->type, s->size) + extra_civ_mil;
+            if (sep > req) req = sep;
+        }
+        if (dx * dx + dy * dy < (float)(req * req)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int find_land_spot(const Game *g, StructureType candidate_type, int min_dist_from_existing,
+                          float *out_x, float *out_y) {
     for (int tries = 0; tries < 400; tries++) {
         float wx = 260.0f + randf() * (float)(WORLD_W - 520);
         float wy = 350.0f + randf() * (float)(WORLD_H - 700);
         TileType t = world_get_tile(&g->world, wx, wy);
         if (t < TILE_SAND || t == TILE_ROCK) continue;
 
-        int ok = 1;
-        for (int i = 0; i < MAX_STRUCTURES; i++) {
-            if (!g->structures[i].active) continue;
-            float dx = g->structures[i].x - wx;
-            float dy = g->structures[i].y - wy;
-            if (dx * dx + dy * dy < (float)(min_dist_from_existing * min_dist_from_existing)) {
-                ok = 0;
-                break;
-            }
-        }
-        if (ok) {
+        if (spot_respects_clearance(g, candidate_type, wx, wy, min_dist_from_existing)) {
             *out_x = wx;
             *out_y = wy;
             return 1;
@@ -177,17 +212,7 @@ static int find_coast_spot(const Game *g, float *out_x, float *out_y) {
         float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
         float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
 
-        int ok = 1;
-        for (int i = 0; i < MAX_STRUCTURES; i++) {
-            if (!g->structures[i].active) continue;
-            float dx = g->structures[i].x - wx;
-            float dy = g->structures[i].y - wy;
-            if (dx * dx + dy * dy < 160.0f * 160.0f) {
-                ok = 0;
-                break;
-            }
-        }
-        if (ok) {
+        if (spot_respects_clearance(g, STRUCT_SHIPYARD, wx, wy, 160)) {
             *out_x = wx;
             *out_y = wy;
             return 1;
@@ -196,7 +221,8 @@ static int find_coast_spot(const Game *g, float *out_x, float *out_y) {
     return 0;
 }
 
-static int find_beach_spot(const Game *g, int min_dist, float *out_x, float *out_y) {
+static int find_beach_spot(const Game *g, StructureType candidate_type, int min_dist,
+                           float *out_x, float *out_y) {
     for (int tries = 0; tries < 600; tries++) {
         int tx = 16 + (int)(randf() * (float)(WORLD_TILES_W - 32));
         int ty = 20 + (int)(randf() * (float)(WORLD_TILES_H - 40));
@@ -207,17 +233,7 @@ static int find_beach_spot(const Game *g, int min_dist, float *out_x, float *out
         float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
         float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
 
-        int ok = 1;
-        for (int i = 0; i < MAX_STRUCTURES; i++) {
-            if (!g->structures[i].active) continue;
-            float dx = g->structures[i].x - wx;
-            float dy = g->structures[i].y - wy;
-            if (dx * dx + dy * dy < (float)(min_dist * min_dist)) {
-                ok = 0;
-                break;
-            }
-        }
-        if (ok) {
+        if (spot_respects_clearance(g, candidate_type, wx, wy, min_dist)) {
             *out_x = wx;
             *out_y = wy;
             return 1;
@@ -384,17 +400,7 @@ static void place_nuclear_reactor(Game *g) {
 
         float wx = (float)(tx * TILE_SIZE + TILE_SIZE / 2);
         float wy = (float)(ty * TILE_SIZE + TILE_SIZE / 2);
-        int ok = 1;
-        for (int i = 0; i < MAX_STRUCTURES; i++) {
-            if (!g->structures[i].active) continue;
-            float dx = g->structures[i].x - wx;
-            float dy = g->structures[i].y - wy;
-            if (dx * dx + dy * dy < 120.0f * 120.0f) {
-                ok = 0;
-                break;
-            }
-        }
-        if (ok) {
+        if (spot_respects_clearance(g, STRUCT_NUCLEAR, wx, wy, 120)) {
             add_structure(g, STRUCT_NUCLEAR, wx, wy, 0);
             return;
         }
@@ -461,7 +467,7 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     }
     for (int i = 0; i < num_factories; i++) {
         float fx, fy;
-        if (find_land_spot(g, 240, &fx, &fy)) {
+        if (find_land_spot(g, STRUCT_FACTORY, 240, &fx, &fy)) {
             add_structure(g, STRUCT_FACTORY, fx, fy, 0);
         }
     }
@@ -469,25 +475,25 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
 
     for (int i = 0; i < num_aa; i++) {
         float ax, ay;
-        if (find_land_spot(g, 130, &ax, &ay)) {
+        if (find_land_spot(g, STRUCT_AA, 130, &ax, &ay)) {
             add_structure(g, STRUCT_AA, ax, ay, 0);
         }
     }
     for (int i = 0; i < num_barracks; i++) {
         float bx, by;
-        if (find_land_spot(g, 150, &bx, &by)) {
+        if (find_land_spot(g, STRUCT_BARRACKS, 150, &bx, &by)) {
             add_structure(g, STRUCT_BARRACKS, bx, by, 0);
         }
     }
     for (int i = 0; i < num_radar; i++) {
         float rx, ry;
-        if (find_land_spot(g, 160, &rx, &ry)) {
+        if (find_land_spot(g, STRUCT_RADAR, 160, &rx, &ry)) {
             add_structure(g, STRUCT_RADAR, rx, ry, 0);
         }
     }
     for (int i = 0; i < num_oil; i++) {
         float ox, oy;
-        if (find_land_spot(g, 130, &ox, &oy)) {
+        if (find_land_spot(g, STRUCT_OIL_FIELD, 130, &ox, &oy)) {
             add_structure(g, STRUCT_OIL_FIELD, ox, oy, 0);
         }
     }
@@ -495,13 +501,13 @@ void game_start_new(Game *g, Difficulty diff, uint32_t seed) {
     /* Civilian beach villages (upgraded to upscale villages with glass towers on big islands) */
     for (int i = 0; i < 14; i++) {
         float bx, by;
-        if (find_beach_spot(g, 140, &bx, &by)) {
+        if (find_beach_spot(g, STRUCT_BUNGALOW, 140, &bx, &by)) {
             add_structure(g, STRUCT_BUNGALOW, bx, by, 0);
         }
     }
     for (int i = 0; i < 8; i++) {
         float tx, ty;
-        if (find_beach_spot(g, 140, &tx, &ty)) {
+        if (find_beach_spot(g, STRUCT_TOWER, 140, &tx, &ty)) {
             add_structure(g, STRUCT_TOWER, tx, ty, 0);
         }
     }
@@ -898,7 +904,7 @@ static void update_structures(Game *g, float dt) {
         if (g->factory_spawn_timer <= 0.0f) {
             g->factory_spawn_timer = 65.0f;
             float fx, fy;
-            if (find_land_spot(g, 240, &fx, &fy)) {
+            if (find_land_spot(g, STRUCT_FACTORY, 240, &fx, &fy)) {
                 add_structure(g, STRUCT_FACTORY, fx, fy, 0);
                 set_status(g, "INTEL: NEW ENEMY FACTORY BUILT!");
             }
