@@ -1224,6 +1224,9 @@ void game_update(Game *g, const InputState *in, float dt) {
             int d = ((int)g->difficulty + in->diff_delta + 3) % 3;
             g->difficulty = (Difficulty)d;
         }
+        if (in->music_delta != 0) {
+            audio_skip_music(in->music_delta);
+        }
         if (in->confirm_pressed) {
             audio_set_music(0);
             game_start_new(g, g->difficulty, (uint32_t)time(NULL) ^ (uint32_t)(g->time_sec * 1000.0f));

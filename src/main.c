@@ -186,6 +186,14 @@ static void main_loop_step(void *arg) {
                 case SDLK_s:
                     if (game->state == STATE_TITLE) in.diff_delta = 1;
                     break;
+                case SDLK_LEFT:
+                case SDLK_a:
+                    if (game->state == STATE_TITLE) in.music_delta = -1;
+                    break;
+                case SDLK_RIGHT:
+                case SDLK_d:
+                    if (game->state == STATE_TITLE) in.music_delta = 1;
+                    break;
                 case SDLK_1:
                     if (game->state == STATE_TITLE) game->difficulty = DIFF_EASY;
                     break;
@@ -222,6 +230,8 @@ static void main_loop_step(void *arg) {
             if (game->state == STATE_TITLE) {
                 if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP) in.diff_delta = -1;
                 if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) in.diff_delta = 1;
+                if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) in.music_delta = -1;
+                if (ev.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) in.music_delta = 1;
             }
 #endif
         } else if (ev.type == SDL_JOYBUTTONDOWN && g_debug_input) {
@@ -251,7 +261,8 @@ static void main_loop_step(void *arg) {
 
 #ifdef __EMSCRIPTEN__
     {
-        static int prev_wstart = 0, prev_wa = 0, prev_wb = 0, prev_wup = 0, prev_wdown = 0;
+        static int prev_wstart = 0, prev_wa = 0, prev_wb = 0;
+        static int prev_wup = 0, prev_wdown = 0, prev_wleft = 0, prev_wright = 0;
         float wmx = 0.0f, wmy = 0.0f;
         int wgun = 0, wbomb = 0, wstart = 0, wa = 0, wb = 0;
         web_poll_gamepad(&wmx, &wmy, &wgun, &wbomb, &wstart, &wa, &wb);
@@ -274,15 +285,20 @@ static void main_loop_step(void *arg) {
             in.no_pressed = 1;
         }
         int wup = (wmy < -0.5f), wdown = (wmy > 0.5f);
+        int wleft = (wmx < -0.5f), wright = (wmx > 0.5f);
         if (game->state == STATE_TITLE) {
             if (wup && !prev_wup) in.diff_delta = -1;
             if (wdown && !prev_wdown) in.diff_delta = 1;
+            if (wleft && !prev_wleft) in.music_delta = -1;
+            if (wright && !prev_wright) in.music_delta = 1;
         }
         prev_wstart = wstart;
         prev_wa = wa;
         prev_wb = wb;
         prev_wup = wup;
         prev_wdown = wdown;
+        prev_wleft = wleft;
+        prev_wright = wright;
     }
 #else
     if (app->controller) {

@@ -136,6 +136,7 @@ typedef struct {
     int pause_pressed;
     int confirm_pressed;
     int diff_delta;
+    int music_delta;
     int mute_pressed;
     int quit_pressed;
     int yes_pressed;

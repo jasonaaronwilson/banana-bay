@@ -1325,6 +1325,11 @@ static void draw_title_screen(const Game *g, Framebuffer *f) {
 
     draw_relaxed_prompt(f, "PRESS ENTER OR GAMEPAD START/A TO LAUNCH", 636, g->time_sec, 0);
     gfx_text(f, 158, 660, 1, COL_GRAY_MID, "v%s", BANANA_BAY_VERSION);
+    {
+        char mstr[64];
+        snprintf(mstr, sizeof(mstr), "< TRACK %d/8: %s >", audio_music_index() + 1, audio_music_name());
+        gfx_text(f, 868 - gfx_text_width(1, mstr), 660, 1, COL_GRAY_MID, "%s", mstr);
+    }
 }
 
 static void draw_quit_prompt(Framebuffer *f) {

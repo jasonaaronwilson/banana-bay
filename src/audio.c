@@ -846,6 +846,40 @@ void audio_set_music(int active) {
     g_music_active = active;
 }
 
+void audio_skip_music(int delta) {
+    if (g_dev == 0 || delta == 0) return;
+    SDL_LockAudioDevice(g_dev);
+    g_music_track = (g_music_track + delta + 8) % 8;
+    g_music_time = 0.0f;
+    g_music_loops = 0;
+    g_music_songs_played = 0;
+    g_music_downtime = 0.0f;
+    g_music_mel_phase = 0.0f;
+    g_music_bass_phase = 0.0f;
+    g_music_harm_phase = 0.0f;
+    g_music_timp_phase = 0.0f;
+    g_music_active = 1;
+    SDL_UnlockAudioDevice(g_dev);
+}
+
+int audio_music_index(void) {
+    return g_music_track % 8;
+}
+
+const char *audio_music_name(void) {
+    static const char *names[8] = {
+        "NAVAL MARCH",
+        "HIGH SEAS HORIZON",
+        "MIDNIGHT FLEET",
+        "TOP GUN REEF",
+        "DANGER ZONE BAY",
+        "PACIFIC HORNPIPE",
+        "IRONCLAD PATROL",
+        "CORAL DAWN"
+    };
+    return names[g_music_track % 8];
+}
+
 void audio_toggle_mute(void) {
     g_muted = !g_muted;
 }
