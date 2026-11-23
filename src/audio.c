@@ -34,6 +34,8 @@ static int g_music_active = 0;
 static float g_music_time = 0.0f;
 static float g_music_mel_phase = 0.0f;
 static float g_music_bass_phase = 0.0f;
+static float g_music_harm_phase = 0.0f;
+static float g_music_timp_phase = 0.0f;
 static uint32_t g_noise_state = 0x12345678u;
 
 static float next_noise(void) {
@@ -56,28 +58,70 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
     for (int i = 0; i < samples; i++) {
         float mix = 0.0f;
 
-        /* Soft navy/military title theme (stately C-minor naval march) */
+        /* Soft navy/military title theme (extended 96-step C-minor naval march) */
         if (g_music_active) {
-            const float step_dur = 0.30f; /* ~100 BPM eighth notes */
-            const int num_steps = 32;
+            const float step_dur = 0.30f; /* ~100 BPM eighth notes (~28.8s loop) */
+            const int num_steps = 96;
             float loop_dur = step_dur * (float)num_steps;
             g_music_time = fmodf(g_music_time + dt, loop_dur);
             int step = (int)(g_music_time / step_dur);
             if (step >= num_steps) step = num_steps - 1;
             float u = (g_music_time - (float)step * step_dur) / step_dur;
 
-            /* Stately naval horn melody (0 = rest) */
-            static const float mel_hz[32] = {
+            /* Section A (0..31): C-minor naval horn theme
+               Section B (32..63): Ab/Eb open-sea bridge
+               Section C (64..95): Fm -> G7 -> Cm dramatic climax & fanfare */
+            static const float mel_hz[96] = {
+                /* Section A */
                 392.00f, 0.0f,    523.25f, 523.25f, 587.33f, 622.25f, 587.33f, 523.25f,
                 392.00f, 0.0f,    466.16f, 523.25f, 466.16f, 392.00f, 349.23f, 0.0f,
                 311.13f, 0.0f,    392.00f, 466.16f, 523.25f, 587.33f, 622.25f, 587.33f,
-                523.25f, 466.16f, 392.00f, 349.23f, 392.00f, 0.0f,    261.63f, 0.0f
+                523.25f, 466.16f, 392.00f, 349.23f, 392.00f, 0.0f,    261.63f, 0.0f,
+                /* Section B */
+                415.30f, 0.0f,    523.25f, 622.25f, 587.33f, 0.0f,    466.16f, 0.0f,
+                622.25f, 587.33f, 523.25f, 466.16f, 523.25f, 0.0f,    392.00f, 0.0f,
+                415.30f, 466.16f, 523.25f, 622.25f, 698.46f, 0.0f,    622.25f, 587.33f,
+                622.25f, 0.0f,    587.33f, 523.25f, 466.16f, 415.30f, 392.00f, 0.0f,
+                /* Section C */
+                349.23f, 0.0f,    415.30f, 523.25f, 622.25f, 587.33f, 493.88f, 392.00f,
+                523.25f, 0.0f,    622.25f, 698.46f, 783.99f, 698.46f, 622.25f, 587.33f,
+                783.99f, 0.0f,    622.25f, 523.25f, 587.33f, 493.88f, 392.00f, 466.16f,
+                523.25f, 587.33f, 622.25f, 587.33f, 523.25f, 0.0f,    261.63f, 0.0f
             };
-            static const float bass_hz[32] = {
+            static const float bass_hz[96] = {
+                /* Section A */
                 130.81f, 130.81f, 98.00f,  98.00f,  103.83f, 103.83f, 98.00f,  98.00f,
                 130.81f, 130.81f, 116.54f, 116.54f, 103.83f, 103.83f, 98.00f,  98.00f,
                 155.56f, 155.56f, 116.54f, 116.54f, 103.83f, 103.83f, 98.00f,  98.00f,
-                130.81f, 116.54f, 103.83f, 98.00f,  130.81f, 98.00f,  130.81f, 0.0f
+                130.81f, 116.54f, 103.83f, 98.00f,  130.81f, 98.00f,  130.81f, 0.0f,
+                /* Section B */
+                103.83f, 103.83f, 155.56f, 155.56f, 116.54f, 116.54f, 116.54f, 98.00f,
+                155.56f, 155.56f, 130.81f, 116.54f, 103.83f, 103.83f, 98.00f,  98.00f,
+                103.83f, 103.83f, 130.81f, 130.81f, 87.31f,  87.31f,  116.54f, 116.54f,
+                155.56f, 155.56f, 116.54f, 116.54f, 103.83f, 103.83f, 98.00f,  0.0f,
+                /* Section C */
+                87.31f,  87.31f,  103.83f, 103.83f, 98.00f,  98.00f,  123.47f, 98.00f,
+                130.81f, 130.81f, 155.56f, 155.56f, 196.00f, 174.61f, 155.56f, 146.83f,
+                130.81f, 130.81f, 103.83f, 103.83f, 98.00f,  98.00f,  116.54f, 116.54f,
+                130.81f, 146.83f, 155.56f, 98.00f,  130.81f, 98.00f,  130.81f, 0.0f
+            };
+            /* New instrument: Naval fife / piccolo counter-melody (enters at Section B after Section A states the theme) */
+            static const float fife_hz[96] = {
+                /* Section A: silent while the horn states the main theme */
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,    0.0f,
+                /* Section B: lively nautical fife counter-line */
+                830.61f, 622.25f, 830.61f, 1046.50f,932.33f, 783.99f, 698.46f, 0.0f,
+                932.33f, 830.61f, 783.99f, 698.46f, 830.61f, 622.25f, 587.33f, 0.0f,
+                830.61f, 932.33f, 1046.50f,932.33f, 830.61f, 698.46f, 932.33f, 783.99f,
+                932.33f, 783.99f, 698.46f, 622.25f, 587.33f, 622.25f, 587.33f, 0.0f,
+                /* Section C: soaring fife harmony */
+                698.46f, 830.61f, 1046.50f,830.61f, 783.99f, 698.46f, 783.99f, 587.33f,
+                783.99f, 932.33f, 1046.50f,0.0f,    1046.50f,932.33f, 830.61f, 783.99f,
+                1046.50f,783.99f, 830.61f, 622.25f, 783.99f, 698.46f, 587.33f, 698.46f,
+                783.99f, 932.33f, 1046.50f,932.33f, 783.99f, 0.0f,    523.25f, 0.0f
             };
 
             float mf = mel_hz[step];
@@ -88,7 +132,18 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 /* Warm triangle-like horn tone */
                 float tri = 1.0f - 4.0f * fabsf(g_music_mel_phase - 0.5f);
                 float sin_t = sinf(g_music_mel_phase * 2.0f * (float)M_PI);
-                mix += (tri * 0.45f + sin_t * 0.55f) * env * 0.065f;
+                mix += (tri * 0.45f + sin_t * 0.55f) * env * 0.062f;
+            }
+
+            float ff = fife_hz[step];
+            if (ff > 0.0f) {
+                g_music_harm_phase += ff * dt;
+                if (g_music_harm_phase >= 1.0f) g_music_harm_phase -= 1.0f;
+                float fenv = (u < 0.12f) ? (u / 0.12f) : (1.0f - (u - 0.12f) * 0.75f);
+                /* Airy naval fife (pure sine + gentle 2nd harmonic) */
+                float f1 = sinf(g_music_harm_phase * 2.0f * (float)M_PI);
+                float f2 = sinf(g_music_harm_phase * 4.0f * (float)M_PI);
+                mix += (f1 * 0.80f + f2 * 0.20f) * fenv * 0.030f;
             }
 
             float bf = bass_hz[step];
@@ -96,7 +151,16 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
                 g_music_bass_phase += bf * dt;
                 if (g_music_bass_phase >= 1.0f) g_music_bass_phase -= 1.0f;
                 float benv = 1.0f - u * 0.55f;
-                mix += sinf(g_music_bass_phase * 2.0f * (float)M_PI) * benv * 0.055f;
+                mix += sinf(g_music_bass_phase * 2.0f * (float)M_PI) * benv * 0.052f;
+            }
+
+            /* Naval timpani hit on bar downbeats & cadence starting in Section B */
+            if (step >= 32 && ((step & 7) == 0 || step == 94)) {
+                float timp_hz = 105.0f - 42.0f * u;
+                g_music_timp_phase += timp_hz * dt;
+                if (g_music_timp_phase >= 1.0f) g_music_timp_phase -= 1.0f;
+                float tenv = (u < 0.05f) ? (u / 0.05f) : (1.0f - u);
+                mix += sinf(g_music_timp_phase * 2.0f * (float)M_PI) * tenv * tenv * 0.065f;
             }
 
             /* Soft brushed snare march pulse on beats */
