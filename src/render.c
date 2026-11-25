@@ -105,26 +105,81 @@ static void gfx_house_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
     gfx_rect(f, fx + rw - 6, fy, 3, 2, win_col);
 }
 
+static uint32_t village_hash(uint32_t x);
+
+/* Organic, asymmetric blue-and-white ship wake (turbulent prop wash + Kelvin V-arms) */
+static void draw_ship_wake(Framebuffer *f, int sx, int sy, float c, float s,
+                           float start_back, float half_beam, float length,
+                           float spread_rate, float time_sec, uint32_t seed) {
+    float rx = -s, ry = c; /* Starboard perpendicular */
+    int is_heavy = (half_beam > 12.0f);
+    int steps = (int)(length / 2.0f);
+    uint32_t anim = (uint32_t)(time_sec * 7.0f);
+    for (int i = 0; i < steps; i++) {
+        float d = (float)i * 2.0f;
+        float t = d / length; /* 0 at stern -> 1 at tail */
+        uint32_t h = village_hash(seed ^ (uint32_t)(i * 2654435761u) ^ (anim * 193u));
+
+        /* Dense churning central prop-wash / turbulent blue-white trough */
+        float turb_w = half_beam * (is_heavy ? (0.65f + t * 0.45f) : (0.45f + t * 0.85f));
+        int puffs = is_heavy ? 6 : 3;
+        for (int p = 0; p < puffs; p++) {
+            uint32_t ph = village_hash(h + (uint32_t)p * 97u);
+            if ((ph % 100u) < (uint32_t)(t * 36.0f)) continue;
+            float lat = (((float)(ph % 201u) - 100.0f) * 0.01f) * turb_w;
+            float back = start_back + d + ((float)((ph >> 8) % 5u) - 2.0f);
+            int wx = sx + (int)(-c * back + rx * lat);
+            int wy = sy + (int)(-s * back + ry * lat);
+            uint8_t col;
+            uint32_t cmix = (ph >> 12) % 10u;
+            if (t < 0.30f) {
+                col = (cmix < 4u) ? COL_WHITE : (cmix < 7u ? COL_FOAM : (cmix < 9u ? COL_CYAN : COL_SHALLOW_SEA));
+            } else if (t < 0.70f) {
+                col = (cmix < 2u) ? COL_FOAM : (cmix < 6u ? COL_SHALLOW_SEA : (cmix < 8u ? COL_CYAN : COL_BLUE_DARK));
+            } else {
+                col = (cmix < 2u) ? COL_FOAM : (cmix < 6u ? COL_SHALLOW_SEA : COL_BLUE_DARK);
+            }
+            if (is_heavy && (ph & 1u) == 0u) {
+                gfx_circle(f, wx, wy, (t < 0.40f) ? 2 : 1, col);
+            } else {
+                gfx_pixel(f, wx, wy, col);
+            }
+        }
+
+        /* Asymmetric Kelvin V-arms (shallower spread_rate for slow carriers) */
+        for (int side = -1; side <= 1; side += 2) {
+            uint32_t sh = village_hash(h + (uint32_t)(side + 2) * 313u);
+            if ((sh % 100u) < (uint32_t)(6 + t * 42.0f)) continue;
+            float wobble = sinf(d * 0.14f + time_sec * 4.0f + (float)(sh % 62u) * 0.1f) * (1.0f + t * 2.0f);
+            float spread = (float)side * (half_beam * 0.82f + d * spread_rate) + wobble;
+            float back = start_back + d + (float)((sh >> 4) % 3u);
+            int kx = sx + (int)(-c * back + rx * spread);
+            int ky = sy + (int)(-s * back + ry * spread);
+            uint8_t kcol = (t < 0.35f) ? (((sh >> 8) & 1u) ? COL_WHITE : COL_FOAM)
+                         : (t < 0.75f ? (((sh >> 8) & 1u) ? COL_FOAM : COL_SHALLOW_SEA) : COL_SHALLOW_SEA);
+            gfx_pixel(f, kx, ky, kcol);
+            if (is_heavy) {
+                gfx_pixel(f, kx + (side > 0 ? -1 : 1), ky, COL_SHALLOW_SEA);
+                if ((sh & 3u) == 0u) gfx_pixel(f, kx + (side > 0 ? -2 : 2), ky, COL_CYAN);
+            }
+        }
+    }
+}
+
 static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
     int sx = (int)(g->carrier.x - cam_x);
     int sy = (int)(g->carrier.y - cam_y);
     if (sx < -160 || sx > SCREEN_W + 160 || sy < -220 || sy > SCREEN_H + 220) return;
 
-    /* Bow wave parting around flat carrier bow + twin-screw Kelvin wake */
-    gfx_line(f, sx - 18, sy - 127, sx - 28, sy - 98, COL_FOAM);
-    gfx_line(f, sx + 18, sy - 127, sx + 28, sy - 98, COL_FOAM);
-    gfx_line(f, sx - 16, sy - 129, sx + 16, sy - 129, COL_FOAM);
-    int wake_len = 64 + (int)(sinf(g->time_sec * 8.0f) * 6.0f);
-    for (int i = 0; i < wake_len; i += 4) {
-        int spread = 18 + i / 3;
-        gfx_pixel(f, sx - spread, sy + 103 + i, COL_FOAM);
-        gfx_pixel(f, sx + spread, sy + 103 + i, COL_FOAM);
-        gfx_pixel(f, sx - 12 - (i / 10), sy + 103 + i, COL_SHALLOW_SEA);
-        gfx_pixel(f, sx + 12 + (i / 10), sy + 103 + i, COL_SHALLOW_SEA);
-        if ((i & 7) == 0) {
-            gfx_line(f, sx - spread + 6, sy + 103 + i, sx + spread - 6, sy + 103 + i, COL_SHALLOW_SEA);
-        }
+    /* Organic blue-and-white bow wash & dense shallow-angle Kelvin wake */
+    uint32_t bw_anim = (uint32_t)(g->time_sec * 6.0f);
+    for (int i = 0; i < 24; i++) {
+        uint32_t bh = village_hash(901u ^ (uint32_t)(i * 73u) ^ (bw_anim * 41u));
+        int bx = sx - 18 + (int)(bh % 37u);
+        int by = sy - 130 + (int)((bh >> 6) % 5u);
+        gfx_pixel(f, bx, by, ((bh >> 9) & 1u) ? COL_FOAM : COL_SHALLOW_SEA);
     }
+    draw_ship_wake(f, sx, sy, 0.0f, -1.0f, 102.0f, 24.0f, 96.0f, 0.14f, g->time_sec, 0xCA7713u);
 
     /* 2.5D waterline shadow & port-side freeboard */
     gfx_quad_i(f, sx - 32, sy - 94, sx - 46, sy + 22, sx - 46, sy + 105, sx - 36, sy + 105, COL_BLACK);
@@ -905,7 +960,7 @@ static void heli_quad(Framebuffer *f, int sx, int sy, float c, float s,
     gfx_triangle(f, x0, y0, x2, y2, x3, y3, col);
 }
 
-static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y) {
+static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y, float time_sec) {
     int sx = (int)(e->x - cam_x);
     int sy = (int)(e->y - cam_y);
     if (sx < -140 || sx > SCREEN_W + 140 || sy < -140 || sy > SCREEN_H + 140) return;
@@ -950,17 +1005,9 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
             break;
         }
         case ENEMY_BOAT: {
-            /* Patrol gunboat with pointed bow, wake, deck, wheelhouse, and bow turret */
-            int w0x, w0y, w1x, w1y, w2x, w2y, w3x, w3y;
-            heli_pt(sx, sy, c, s, -14.0f, -3.0f, &w0x, &w0y);
-            heli_pt(sx, sy, c, s, -24.0f, -9.0f, &w1x, &w1y);
-            heli_pt(sx, sy, c, s, -14.0f,  3.0f, &w2x, &w2y);
-            heli_pt(sx, sy, c, s, -24.0f,  9.0f, &w3x, &w3y);
-            gfx_line(f, w0x, w0y, w1x, w1y, COL_FOAM);
-            gfx_line(f, w2x, w2y, w3x, w3y, COL_FOAM);
-            int stx, sty;
-            heli_pt(sx, sy, c, s, -17.0f, 0.0f, &stx, &sty);
-            gfx_circle(f, stx, sty, 2, COL_FOAM);
+            /* Patrol gunboat with organic blue-and-white wake, pointed bow, wheelhouse, and bow turret */
+            draw_ship_wake(f, sx, sy, c, s, 14.0f, 5.0f, 28.0f, 0.32f, time_sec,
+                           (uint32_t)((int)e->x * 31 ^ (int)e->y * 17));
 
             /* Naval hull (stern to midship + pointed bow) */
             int bx, by, px, py, sx1, sy1;
@@ -1006,7 +1053,8 @@ static void draw_enemy(const EnemyUnit *e, Framebuffer *f, int cam_x, int cam_y)
             break;
         }
         case ENEMY_CARRIER: {
-            /* Enemy flat-top carrier (scaled up) */
+            /* Enemy flat-top carrier (scaled up) with dense shallow-angle wake */
+            draw_ship_wake(f, sx, sy, 0.0f, -1.0f, 80.0f, 22.0f, 72.0f, 0.14f, time_sec, 0xEC4411u);
             gfx_rect(f, sx - 34, sy - 80, 68, 160, COL_RED_DARK);
             gfx_triangle(f, sx - 34, sy - 80, sx + 34, sy - 80, sx, sy - 108, COL_RED_DARK);
             gfx_rect(f, sx - 28, sy - 72, 56, 144, COL_GRAY_DARK);
@@ -1516,7 +1564,7 @@ static void draw_gallery_screen(const Game *g, Framebuffer *f) {
         u.angle = -0.55f;
         u.hp = 100;
         u.max_hp = 100;
-        draw_enemy(&u, f, 0, 0);
+        draw_enemy(&u, f, 0, 0, g->time_sec);
     }
 
     /* Tall carrier cards on the right */
@@ -1537,7 +1585,7 @@ static void draw_gallery_screen(const Game *g, Framebuffer *f) {
         ec.y = 282.0f;
         ec.angle = 0.0f;
         ec.hp = ec.max_hp = 100;
-        draw_enemy(&ec, f, 0, 0);
+        draw_enemy(&ec, f, 0, 0, g->time_sec);
     }
 
     /* Section 3: Island Structures */
@@ -1664,7 +1712,7 @@ void render_game(const Game *g, Framebuffer *f) {
             if (!e->active) continue;
             int is_air = (e->type == ENEMY_FIGHTER || e->type == ENEMY_BOMBER);
             if ((pass == 0 && !is_air) || (pass == 1 && is_air)) {
-                draw_enemy(e, f, cam_x, cam_y);
+                draw_enemy(e, f, cam_x, cam_y, g->time_sec);
             }
         }
     }
