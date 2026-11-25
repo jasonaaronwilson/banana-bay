@@ -8,50 +8,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
-    int sx = (int)(g->carrier.x - cam_x);
-    int sy = (int)(g->carrier.y - cam_y);
-    if (sx < -160 || sx > SCREEN_W + 160 || sy < -220 || sy > SCREEN_H + 220) return;
-
-    /* Wake behind carrier (south of carrier since it travels north) */
-    int wake_len = 56 + (int)(sinf(g->time_sec * 8.0f) * 6.0f);
-    for (int i = 0; i < wake_len; i += 5) {
-        int spread = 16 + i / 3;
-        gfx_pixel(f, sx - spread, sy + 90 + i, COL_FOAM);
-        gfx_pixel(f, sx + spread, sy + 90 + i, COL_FOAM);
-        if ((i & 7) == 0) {
-            gfx_line(f, sx - spread + 6, sy + 90 + i, sx + spread - 6, sy + 90 + i, COL_SHALLOW_SEA);
-        }
-    }
-
-    /* Hull */
-    gfx_rect(f, sx - 38, sy - 88, 76, 176, COL_GRAY_DARK);
-    gfx_triangle(f, sx - 38, sy - 88, sx + 38, sy - 88, sx, sy - 120, COL_GRAY_DARK);
-    /* Flight deck */
-    gfx_rect(f, sx - 32, sy - 82, 64, 164, COL_GRAY_MID);
-    gfx_triangle(f, sx - 30, sy - 82, sx + 30, sy - 82, sx, sy - 110, COL_GRAY_MID);
-    gfx_rect_outline(f, sx - 32, sy - 82, 64, 164, COL_GRAY_LIGHT);
-
-    /* Runway stripes & helipad circle */
-    for (int y = -70; y < 74; y += 14) {
-        gfx_rect(f, sx - 2, sy + y, 4, 8, COL_WHITE);
-    }
-    gfx_circle_outline(f, sx, sy + 30, 18, COL_YELLOW);
-    gfx_text(f, sx - 5, sy + 24, 2, COL_YELLOW, "H");
-
-    /* Control island (starboard side) */
-    gfx_rect(f, sx + 18, sy - 26, 16, 46, COL_GRAY_LIGHT);
-    gfx_rect(f, sx + 21, sy - 18, 9, 12, COL_CYAN);
-    gfx_rect_outline(f, sx + 18, sy - 26, 16, 46, COL_BLACK);
-
-    /* HP bar above carrier */
-    int bw = 68;
-    int fill = (g->carrier.hp * bw) / g->carrier.max_hp;
-    gfx_rect(f, sx - bw / 2, sy - 130, bw, 6, COL_BLACK);
-    gfx_rect(f, sx - bw / 2 + 1, sy - 129, fill > 2 ? fill - 2 : 0, 4,
-             g->carrier.hp > g->carrier.max_hp / 3 ? COL_GREEN_BRIGHT : COL_RED);
-}
-
 static void gfx_quad_i(Framebuffer *f, int x0, int y0, int x1, int y1,
                        int x2, int y2, int x3, int y3, uint8_t col) {
     gfx_triangle(f, x0, y0, x1, y1, x2, y2, col);
@@ -147,6 +103,115 @@ static void gfx_house_3d(Framebuffer *f, int rx, int ry, int rw, int rd, int h,
     int fy = ry + rd + h / 2;
     gfx_rect(f, fx + 3, fy - 1, 3, h - h / 2, door_col);
     gfx_rect(f, fx + rw - 6, fy, 3, 2, win_col);
+}
+
+static void draw_carrier_friendly(const Game *g, Framebuffer *f, int cam_x, int cam_y) {
+    int sx = (int)(g->carrier.x - cam_x);
+    int sy = (int)(g->carrier.y - cam_y);
+    if (sx < -160 || sx > SCREEN_W + 160 || sy < -220 || sy > SCREEN_H + 220) return;
+
+    /* Bow wave parting around flat carrier bow + twin-screw Kelvin wake */
+    gfx_line(f, sx - 18, sy - 127, sx - 28, sy - 98, COL_FOAM);
+    gfx_line(f, sx + 18, sy - 127, sx + 28, sy - 98, COL_FOAM);
+    gfx_line(f, sx - 16, sy - 129, sx + 16, sy - 129, COL_FOAM);
+    int wake_len = 64 + (int)(sinf(g->time_sec * 8.0f) * 6.0f);
+    for (int i = 0; i < wake_len; i += 4) {
+        int spread = 18 + i / 3;
+        gfx_pixel(f, sx - spread, sy + 103 + i, COL_FOAM);
+        gfx_pixel(f, sx + spread, sy + 103 + i, COL_FOAM);
+        gfx_pixel(f, sx - 12 - (i / 10), sy + 103 + i, COL_SHALLOW_SEA);
+        gfx_pixel(f, sx + 12 + (i / 10), sy + 103 + i, COL_SHALLOW_SEA);
+        if ((i & 7) == 0) {
+            gfx_line(f, sx - spread + 6, sy + 103 + i, sx + spread - 6, sy + 103 + i, COL_SHALLOW_SEA);
+        }
+    }
+
+    /* 2.5D waterline shadow & port-side freeboard */
+    gfx_quad_i(f, sx - 32, sy - 94, sx - 46, sy + 22, sx - 46, sy + 105, sx - 36, sy + 105, COL_BLACK);
+    gfx_rect(f, sx - 36, sy + 97, 72, 10, COL_ROCK_DARK);
+
+    /* Main hull & flat-bow carrier deck (10% longer, same beam) */
+    gfx_quad_i(f, sx - 20, sy - 127, sx + 20, sy - 127, sx + 26, sy - 92, sx - 26, sy - 92, COL_ROCK_DARK);
+    gfx_rect(f, sx - 34, sy - 92, 68, 193, COL_ROCK_DARK);
+    /* Flared angled port-side sponson / flight deck overhang */
+    gfx_quad_i(f, sx - 26, sy - 92, sx - 44, sy - 6, sx - 40, sy + 99, sx - 28, sy + 99, COL_GRAY_DARK);
+    gfx_quad_i(f, sx + 26, sy - 92, sx + 38, sy - 32, sx + 36, sy + 99, sx + 26, sy + 99, COL_GRAY_DARK);
+
+    /* Main flight deck (straight flat bow + asymmetric angled landing deck) */
+    gfx_quad_i(f, sx - 17, sy - 123, sx + 17, sy - 123, sx + 22, sy - 90, sx - 22, sy - 90, COL_GRAY_MID);
+    gfx_quad_i(f, sx - 22, sy - 90,  sx + 22, sy - 90,  sx + 34, sy - 28, sx - 40, sy - 4,  COL_GRAY_MID);
+    gfx_quad_i(f, sx - 40, sy - 4,   sx + 34, sy - 28, sx + 32, sy + 97, sx - 36, sy + 97, COL_GRAY_MID);
+
+    /* Crisp flight deck perimeter edge */
+    gfx_line(f, sx - 17, sy - 123, sx + 17, sy - 123, COL_GRAY_LIGHT);
+    gfx_line(f, sx - 17, sy - 123, sx - 22, sy - 90,  COL_GRAY_LIGHT);
+    gfx_line(f, sx + 17, sy - 123, sx + 22, sy - 90,  COL_GRAY_LIGHT);
+    gfx_line(f, sx - 22, sy - 90,  sx - 40, sy - 4,   COL_GRAY_LIGHT);
+    gfx_line(f, sx - 40, sy - 4,   sx - 36, sy + 97,  COL_GRAY_LIGHT);
+    gfx_line(f, sx + 22, sy - 90,  sx + 34, sy - 28,  COL_GRAY_LIGHT);
+    gfx_line(f, sx + 34, sy - 28,  sx + 32, sy + 97,  COL_GRAY_LIGHT);
+    gfx_line(f, sx - 36, sy + 97,  sx + 32, sy + 97,  COL_GRAY_LIGHT);
+
+    /* Aircraft elevators (port aft + 3 starboard deck-edge cutouts) */
+    gfx_rect(f, sx - 37, sy + 73, 8, 16, COL_GRAY_DARK);
+    gfx_rect(f, sx + 27, sy - 64, 7, 16, COL_GRAY_DARK);
+    gfx_rect(f, sx + 28, sy + 20, 7, 16, COL_GRAY_DARK);
+    gfx_rect(f, sx + 26, sy + 70, 7, 16, COL_GRAY_DARK);
+
+    /* Twin bow catapult tracks running to straight bow edge + jet blast deflectors */
+    gfx_line(f, sx - 11, sy - 120, sx - 7, sy - 36, COL_GRAY_LIGHT);
+    gfx_line(f, sx + 9,  sy - 120, sx + 10, sy - 38, COL_GRAY_LIGHT);
+    gfx_rect(f, sx - 10, sy - 36, 7, 3, COL_RED_DARK);
+    gfx_rect(f, sx + 7,  sy - 38, 7, 3, COL_RED_DARK);
+
+    /* Iconic angled landing runway (foul lines + dashed centerline) */
+    gfx_line(f, sx - 34, sy + 93, sx - 37, sy - 4,  COL_RED);
+    gfx_line(f, sx + 8,  sy + 93, sx - 12, sy - 56, COL_WHITE);
+    for (int i = 0; i < 9; i++) {
+        int y0 = 86 - i * 16;
+        int x0 = sx - 13 - (i * 3) / 2;
+        gfx_line(f, x0, sy + y0, x0 - 1, sy + y0 - 8, COL_YELLOW);
+    }
+
+    /* 4 Arresting gear wires across aft landing zone */
+    for (int w = 0; w < 4; w++) {
+        int wy = sy + 52 + w * 9;
+        gfx_line(f, sx - 30, wy, sx + 4, wy - 2, COL_GRAY_LIGHT);
+    }
+
+    /* Helipad landing spot ('H') & CVN-68 bow number */
+    gfx_circle_outline(f, sx - 10, sy + 26, 15, COL_YELLOW);
+    gfx_text(f, sx - 15, sy + 20, 2, COL_YELLOW, "H");
+    gfx_text(f, sx - 7, sy - 102, 1, COL_WHITE, "68");
+
+    /* Tiny parked swept-wing jets on starboard bow/stern apron */
+    static const int jx[3] = {16, 18, 16};
+    static const int jy[3] = {-78, -58, 52};
+    for (int j = 0; j < 3; j++) {
+        int px = sx + jx[j], py = sy + jy[j];
+        gfx_triangle(f, px - 5, py, px + 3, py - 4, px + 3, py + 4, COL_WHITE);
+        gfx_pixel(f, px - 2, py, COL_CYAN);
+    }
+
+    /* 2.5D Starboard Island (superstructure, Pri-Fly bridge & spinning radar) */
+    gfx_box_3d(f, sx + 21, sy - 28, 13, 40, 11, COL_GRAY_LIGHT, COL_GRAY_MID, COL_GRAY_DARK, COL_BLACK);
+    /* Pri-Fly & navigation bridge windows */
+    gfx_rect(f, sx + 17, sy - 18, 4, 14, COL_CYAN);
+    gfx_rect(f, sx + 22, sy - 16, 9, 10, COL_GRAY_DARK);
+    /* Upper mast + spinning SPS-48 radar dish */
+    gfx_box_3d(f, sx + 25, sy - 11, 7, 10, 7, COL_WHITE, COL_GRAY_LIGHT, COL_GRAY_MID, COL_BLACK);
+    float rang = g->time_sec * 3.5f;
+    int rx = sx + 28 + (int)(cosf(rang) * 6.0f);
+    int ry = sy - 7 + (int)(sinf(rang) * 3.0f);
+    gfx_line(f, sx + 28 - (int)(cosf(rang) * 6.0f), sy - 7 - (int)(sinf(rang) * 3.0f), rx, ry, COL_WHITE);
+    gfx_pixel(f, sx + 28, sy + 4, COL_WHITE);
+
+    /* HP bar above carrier */
+    int bw = 68;
+    int fill = (g->carrier.hp * bw) / g->carrier.max_hp;
+    gfx_rect(f, sx - bw / 2, sy - 141, bw, 6, COL_BLACK);
+    gfx_rect(f, sx - bw / 2 + 1, sy - 140, fill > 2 ? fill - 2 : 0, 4,
+             g->carrier.hp > g->carrier.max_hp / 3 ? COL_GREEN_BRIGHT : COL_RED);
 }
 
 static void draw_village_house(Framebuffer *f, int cx, int cy, int style, int damaged) {
